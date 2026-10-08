@@ -49,6 +49,7 @@ class ConfigModule {
   readonly shikimori = process.env.SHIKIMORI ?? 'https://shikimori.io';
   readonly kitsu = process.env.KITSU ?? 'https://kitsu.io/api/edge';
   readonly anizip = process.env.ANIZIP ?? 'https://api.ani.zip';
+  readonly jikan = process.env.JIKAN ?? 'https://api.jikan.moe/v4';
   readonly tmdb = process.env.TMDB ?? 'https://api.themoviedb.org/3';
   readonly tmdb_image = process.env.TMDB_IMAGE ?? 'https://image.tmdb.org/t/p/';
   readonly tvdb = process.env.TVDB ?? 'https://api4.thetvdb.com/v4';
@@ -71,6 +72,7 @@ class ConfigModule {
   readonly use_shikimori = parseBoolean(process.env.USE_SHIKIMORI) ?? true;
   readonly use_kitsu = parseBoolean(process.env.USE_KITSU) ?? true;
   readonly use_anizip = parseBoolean(process.env.USE_ANIZIP) ?? true;
+  readonly use_jikan = parseBoolean(process.env.USE_JIKAN) ?? true;
   readonly use_tmdb = parseBoolean(process.env.USE_TMDB) ?? true;
   readonly use_tvdb = parseBoolean(process.env.USE_TVDB) ?? true;
   readonly use_zerochan = parseBoolean(process.env.USE_ZEROCHAN) ?? true;

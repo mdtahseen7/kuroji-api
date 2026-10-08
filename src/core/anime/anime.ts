@@ -2,6 +2,7 @@ import {
   Anilist,
   AnilistUtils,
   Anizip,
+  Jikan,
   Kitsu,
   MyAnimeList,
   Shikimori,
@@ -41,6 +42,7 @@ class AnimeModule extends Module {
       Shikimori.getInfo(id, idMal).catch(() => null),
       Kitsu.getInfo(id).catch(() => null),
       Anizip.getMappings(id).catch(() => null),
+      Jikan.getInfo(id, idMal).catch(() => null),
       Tmdb.getInfo(id).catch(() => null),
       Tvdb.getInfo(id).catch(() => null),
       Zerochan.getImages(id).catch(() => null)
