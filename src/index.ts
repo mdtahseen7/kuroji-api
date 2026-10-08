@@ -6,7 +6,7 @@ import { HttpError } from './helpers/errors';
 import { Config } from './config/config';
 import rateLimit from './helpers/plugins/rate.limit';
 import protectRoute from './helpers/plugins/protect.route';
-import { animeIndexerRoute, animeRoute, animeUpdateRoute, apiRoute, mappingsRoute, yoga } from './core';
+import { adminRoute, animeIndexerRoute, animeRoute, animeUpdateRoute, apiRoute, mappingsRoute, yoga } from './core';
 import logger from './helpers/logger';
 import Elysia, { file, NotFoundError, t } from 'elysia';
 import { cors } from '@elysiajs/cors';
@@ -127,6 +127,7 @@ app.use(animeIndexerRoute());
 app.use(animeUpdateRoute());
 app.use(apiRoute());
 app.use(mappingsRoute());
+app.use(adminRoute());
 
 app.get('/graphql', ({ request }) => yoga.handle(request), {
   tags: ['GraphQL'],
