@@ -7,7 +7,6 @@ import { Anime } from '../../anime';
 import { AnimeChronologyPayload, AnimeScreenshotPayload, AnimeVideoPayload } from '../../types';
 import { forced } from 'src/helpers/forced';
 import { Config } from 'src/config';
-import { ISO_639_1 } from 'src/helpers/languages';
 
 class ShikimoriModule extends ProviderModule<ShikimoriAnime> {
   override readonly name = 'Shikimori';
@@ -54,28 +53,6 @@ class ShikimoriModule extends ProviderModule<ShikimoriAnime> {
       });
 
       await Anime.save({ id, screenshots });
-    }
-
-    if (info.russian) {
-      await Anime.save({
-        id,
-        other_titles: {
-          title: info.russian,
-          source: this.name,
-          language: ISO_639_1.RU
-        }
-      });
-    }
-
-    if (info.description) {
-      await Anime.save({
-        id,
-        other_descriptions: {
-          description: info.description,
-          source: this.name,
-          language: ISO_639_1.RU
-        }
-      });
     }
 
     if (info.poster) {
