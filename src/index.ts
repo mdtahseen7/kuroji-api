@@ -6,7 +6,7 @@ import { HttpError } from './helpers/errors';
 import { Config } from './config/config';
 import rateLimit from './helpers/plugins/rate.limit';
 import protectRoute from './helpers/plugins/protect.route';
-import { animeIndexerRoute, animeRoute, animeUpdateRoute, apiRoute, yoga } from './core';
+import { animeIndexerRoute, animeRoute, animeUpdateRoute, apiRoute, mappingsRoute, yoga } from './core';
 import logger from './helpers/logger';
 import Elysia, { file, NotFoundError, t } from 'elysia';
 import { cors } from '@elysiajs/cors';
@@ -77,6 +77,10 @@ const app = new Elysia()
             description: 'Anime Update REST endpoints'
           },
           {
+            name: 'Mappings',
+            description: 'Self-hosted AniZip mappings REST endpoints'
+          },
+          {
             name: 'API',
             description: 'Main REST endpoints'
           },
@@ -122,6 +126,7 @@ app.use(animeRoute());
 app.use(animeIndexerRoute());
 app.use(animeUpdateRoute());
 app.use(apiRoute());
+app.use(mappingsRoute());
 
 app.get('/graphql', ({ request }) => yoga.handle(request), {
   tags: ['GraphQL'],

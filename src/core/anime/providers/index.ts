@@ -1,4 +1,5 @@
 export * from './anilist';
+export * from './anizip';
 export * from './kitsu';
 export * from './mal';
 export * from './shikimori';
