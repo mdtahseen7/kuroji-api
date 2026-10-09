@@ -1,137 +1,137 @@
-export interface AnimeArgs {
+// Argument interfaces mirroring AniList's public GraphQL API (camelCase).
+// Only the public read surface is modelled; account-gated args are omitted.
+
+export interface PageArgs {
   page?: number;
-  per_page?: number;
-  search?: string;
+  perPage?: number;
+}
+
+export interface MediaArgs {
   id?: number;
-  id_in?: number[];
-  id_not?: number;
-  id_not_in?: number[];
-  id_mal?: number;
-  id_mal_in?: number[];
-  id_mal_not?: number;
-  id_mal_not_in?: number[];
+  idMal?: number;
+  startDate?: number;
+  endDate?: number;
   season?: string;
-  season_year?: number;
-  season_year_greater?: number;
-  season_year_lesser?: number;
-  format?: string;
-  format_in?: string[];
-  format_not_in?: string[];
-  status?: string;
-  status_in?: string[];
-  status_not_in?: string[];
+  seasonYear?: number;
   type?: string;
+  format?: string;
+  status?: string;
+  episodes?: number;
+  duration?: number;
+  chapters?: number;
+  volumes?: number;
+  isAdult?: boolean;
+  genre?: string;
+  tag?: string;
+  minimumTagRank?: number;
+  tagCategory?: string;
+  onList?: boolean;
+  licensedBy?: string;
+  licensedById?: number;
+  averageScore?: number;
+  popularity?: number;
   source?: string;
-  source_in?: string[];
-  country?: string;
-  is_licensed?: boolean;
-  is_adult?: boolean;
-  air_week?: number;
-  air_week_in?: number[];
-  air_week_not_in?: number[];
-  age_rating?: string;
-  age_rating_in?: string[];
-  age_rating_not_in?: string[];
-  genres?: string;
-  genres_in?: string[];
-  genres_not_in?: string[];
-  tags?: string;
-  tags_in?: string[];
-  tags_not_in?: string[];
-  studios?: string;
-  studios_in?: string[];
-  studios_not_in?: string[];
-  studio_is_main?: boolean;
-  score_greater?: number;
-  score_lesser?: number;
-  popularity_greater?: number;
-  popularity_lesser?: number;
+  countryOfOrigin?: string;
+  isLicensed?: boolean;
+  search?: string;
+  id_not?: number;
+  id_in?: number[];
+  id_not_in?: number[];
+  idMal_not?: number;
+  idMal_in?: number[];
+  idMal_not_in?: number[];
+  startDate_greater?: number;
+  startDate_lesser?: number;
+  startDate_like?: string;
+  endDate_greater?: number;
+  endDate_lesser?: number;
+  endDate_like?: string;
+  format_in?: string[];
+  format_not?: string;
+  format_not_in?: string[];
+  status_in?: string[];
+  status_not?: string;
+  status_not_in?: string[];
   episodes_greater?: number;
   episodes_lesser?: number;
   duration_greater?: number;
   duration_lesser?: number;
-  start_date_greater?: string;
-  start_date_lesser?: string;
-  end_date_greater?: string;
-  end_date_lesser?: string;
-  start_date_like?: string;
-  end_date_like?: string;
-  airing_at_greater?: number;
-  airing_at_lesser?: number;
-  has_next_episode?: boolean;
-  franchise?: string;
+  chapters_greater?: number;
+  chapters_lesser?: number;
+  volumes_greater?: number;
+  volumes_lesser?: number;
+  genre_in?: string[];
+  genre_not_in?: string[];
+  tag_in?: string[];
+  tag_not_in?: string[];
+  tagCategory_in?: string[];
+  tagCategory_not_in?: string[];
+  licensedBy_in?: string[];
+  licensedById_in?: number[];
+  averageScore_not?: number;
+  averageScore_greater?: number;
+  averageScore_lesser?: number;
+  popularity_not?: number;
+  popularity_greater?: number;
+  popularity_lesser?: number;
+  source_in?: string[];
+  countryOfOrigin_in?: string[];
+  countryOfOrigin_not_in?: string[];
   sort?: string[];
 }
 
-export interface TypeArgs {
-  type?: string;
-}
-
-export interface ChronologyArgs extends AnimeArgs {
-  parent_id: number;
-}
-
-export interface RecommendationArgs extends AnimeArgs {
-  parent_id: number;
-}
-
 export interface CharacterArgs {
-  page?: number;
-  per_page?: number;
-  parent_id: number;
+  id?: number;
+  search?: string;
+  id_in?: number[];
 }
 
-export interface EpisodeArgs {
-  id: number;
-  number: number;
+export interface StaffArgs {
+  id?: number;
+  search?: string;
+  id_in?: number[];
 }
 
-export interface ArtworksArgs {
-  source?: string;
-  type?: string;
-  iso_639_1?: string;
-  include_adult?: boolean;
+export interface StudioArgs {
+  id?: number;
+  search?: string;
+  id_in?: number[];
 }
 
-export interface TranslationsArgs {
-  source?: string;
-  iso_639_1?: string;
+export interface AiringScheduleArgs {
+  id?: number;
+  mediaId?: number;
+  episode?: number;
+  airingAt?: number;
+  airingAt_greater?: number;
+  airingAt_lesser?: number;
 }
 
-export interface LinkArgs extends TypeArgs {
-  type?: string;
-  label?: string;
+export interface MediaTrendArgs {
+  mediaId?: number;
+  date?: number;
+  trending?: number;
+  averageScore?: number;
+  popularity?: number;
+  episode?: number;
+  releasing?: boolean;
+  sort?: string[];
 }
 
-export interface ImageArgs {
-  source?: string;
-  type?: string;
+export interface ReviewArgs {
+  id?: number;
+  mediaId?: number;
+  userId?: number;
+  mediaType?: string;
+  sort?: string[];
 }
 
-export interface VideoArgs {
-  source?: string;
-  type?: string;
+export interface MarkdownArgs {
+  markdown?: string;
 }
 
-export interface ScreenshotArgs {
-  source?: string;
-  order_greater?: number;
-  order_lesser?: number;
-}
-
-export interface EpisodeArgs {
-  number_greater?: number;
-  number_lesser?: number;
-  air_date_greater?: string;
-  air_date_lesser?: string;
-}
-
-export interface OtherTitleArgs {
-  source?: string;
-  language?: string;
-}
-
-export interface OtherDescriptionArgs {
-  source?: string;
-  language?: string;
+// Pagination context passed from Query.Page to Page.* field resolvers
+export interface PageContext {
+  page: number;
+  perPage: number;
 }

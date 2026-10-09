@@ -1,218 +1,1640 @@
 type Query {
-  anime(id: Int!): Anime
-  animes(
-    page: Int = 1
-    per_page: Int = 20
-    search: String
+  Page(
+    """The page number"""
+    page: Int
+    """The amount of entries per page, max 50"""
+    perPage: Int
+  ): Page
+  """Media query"""
+  Media(
+    """Filter by the media id"""
     id: Int
-    id_in: [Int!]
-    id_not: Int
-    id_not_in: [Int!]
-    id_mal: Int
-    id_mal_in: [Int!]
-    id_mal_not: Int
-    id_mal_not_in: [Int!]
+    """Filter by the media's MyAnimeList id"""
+    idMal: Int
+    """Filter by the start date of the media"""
+    startDate: FuzzyDateInt
+    """Filter by the end date of the media"""
+    endDate: FuzzyDateInt
+    """Filter by the season the media was released in"""
     season: MediaSeason
-    season_year: Int
-    season_year_greater: Int
-    season_year_lesser: Int
-    format: MediaFormat
-    format_in: [MediaFormat!]
-    format_not_in: [MediaFormat!]
-    status: MediaStatus
-    status_in: [MediaStatus!]
-    status_not_in: [MediaStatus!]
+    """
+    The year of the season (Winter 2017 would also include December 2016 releases). Requires season argument
+    """
+    seasonYear: Int
+    """Filter by the media's type"""
     type: MediaType
+    """Filter by the media's format"""
+    format: MediaFormat
+    """Filter by the media's current release status"""
+    status: MediaStatus
+    """Filter by amount of episodes the media has"""
+    episodes: Int
+    """Filter by the media's episode length"""
+    duration: Int
+    """Filter by the media's chapter count"""
+    chapters: Int
+    """Filter by the media's volume count"""
+    volumes: Int
+    """Filter by if the media's intended for 18+ adult audiences"""
+    isAdult: Boolean
+    """Filter by the media's genres"""
+    genre: String
+    """Filter by the media's tags"""
+    tag: String
+    """
+    Only apply the tags filter argument to tags above this rank. Default: 18
+    """
+    minimumTagRank: Int
+    """Filter by the media's tags with in a tag category"""
+    tagCategory: String
+    """Filter by the media on the authenticated user's lists"""
+    onList: Boolean
+    """Filter media by sites name with a online streaming or reading license"""
+    licensedBy: String
+    """Filter media by sites id with a online streaming or reading license"""
+    licensedById: Int
+    """Filter by the media's average score"""
+    averageScore: Int
+    """Filter by the number of users with this media on their list"""
+    popularity: Int
+    """Filter by the source type of the media"""
     source: MediaSource
-    source_in: [MediaSource!]
-    country: CountryCode
-    is_licensed: Boolean
-    is_adult: Boolean
-    air_week: Int
-    air_week_in: [Int!]
-    air_week_not_in: [Int!]
-    age_rating: String
-    age_rating_in: [String!]
-    age_rating_not_in: [String!]
-    genres: String
-    genres_in: [String!]
-    genres_not_in: [String!]
-    tags: String
-    tags_in: [String!]
-    tags_not_in: [String!]
-    studios: String
-    studios_in: [String!]
-    studios_not_in: [String!]
-    studio_is_main: Boolean
-    score_greater: Int
-    score_lesser: Int
-    popularity_greater: Int
-    popularity_lesser: Int
+    """Filter by the media's country of origin"""
+    countryOfOrigin: CountryCode
+    """If the media is officially licensed or a self-published doujin release"""
+    isLicensed: Boolean
+    """Filter by search query"""
+    search: String
+    """Filter by the media id"""
+    id_not: Int
+    """Filter by the media id (max 10,000 items)"""
+    id_in: [Int]
+    """Filter by the media id (max 10,000 items)"""
+    id_not_in: [Int]
+    """Filter by the media's MyAnimeList id"""
+    idMal_not: Int
+    """Filter by the media's MyAnimeList id (max 10,000 items)"""
+    idMal_in: [Int]
+    """Filter by the media's MyAnimeList id (max 10,000 items)"""
+    idMal_not_in: [Int]
+    """Filter by the start date of the media"""
+    startDate_greater: FuzzyDateInt
+    """Filter by the start date of the media"""
+    startDate_lesser: FuzzyDateInt
+    """Filter by the start date of the media"""
+    startDate_like: String
+    """Filter by the end date of the media"""
+    endDate_greater: FuzzyDateInt
+    """Filter by the end date of the media"""
+    endDate_lesser: FuzzyDateInt
+    """Filter by the end date of the media"""
+    endDate_like: String
+    """Filter by the media's format (max 10,000 items)"""
+    format_in: [MediaFormat]
+    """Filter by the media's format"""
+    format_not: MediaFormat
+    """Filter by the media's format (max 10,000 items)"""
+    format_not_in: [MediaFormat]
+    """Filter by the media's current release status (max 10,000 items)"""
+    status_in: [MediaStatus]
+    """Filter by the media's current release status"""
+    status_not: MediaStatus
+    """Filter by the media's current release status (max 10,000 items)"""
+    status_not_in: [MediaStatus]
+    """Filter by amount of episodes the media has"""
     episodes_greater: Int
+    """Filter by amount of episodes the media has"""
     episodes_lesser: Int
+    """Filter by the media's episode length"""
     duration_greater: Int
+    """Filter by the media's episode length"""
     duration_lesser: Int
-    start_date_greater: String
-    start_date_lesser: String
-    end_date_greater: String
-    end_date_lesser: String
-    start_date_like: String
-    end_date_like: String
-    airing_at_greater: Int
-    airing_at_lesser: Int
-    has_next_episode: Boolean
-    franchise: String
-    sort: [AnimeSort!]
-  ): AnimePage!
-  genres: [AnimeGenre!]!
-  tags(search: String, category: String, is_adult: Boolean): [AnimeTag!]!
-  studios(search: String): [AnimeStudio!]!
+    """Filter by the media's chapter count"""
+    chapters_greater: Int
+    """Filter by the media's chapter count"""
+    chapters_lesser: Int
+    """Filter by the media's volume count"""
+    volumes_greater: Int
+    """Filter by the media's volume count"""
+    volumes_lesser: Int
+    """Filter by the media's genres (max 10,000 items)"""
+    genre_in: [String]
+    """Filter by the media's genres (max 10,000 items)"""
+    genre_not_in: [String]
+    """Filter by the media's tags (max 10,000 items)"""
+    tag_in: [String]
+    """Filter by the media's tags (max 10,000 items)"""
+    tag_not_in: [String]
+    """Filter by the media's tags with in a tag category (max 10,000 items)"""
+    tagCategory_in: [String]
+    """Filter by the media's tags with in a tag category (max 10,000 items)"""
+    tagCategory_not_in: [String]
+    """
+    Filter media by sites name with a online streaming or reading license (max 10,000 items)
+    """
+    licensedBy_in: [String]
+    """
+    Filter media by sites id with a online streaming or reading license (max 10,000 items)
+    """
+    licensedById_in: [Int]
+    """Filter by the media's average score"""
+    averageScore_not: Int
+    """Filter by the media's average score"""
+    averageScore_greater: Int
+    """Filter by the media's average score"""
+    averageScore_lesser: Int
+    """Filter by the number of users with this media on their list"""
+    popularity_not: Int
+    """Filter by the number of users with this media on their list"""
+    popularity_greater: Int
+    """Filter by the number of users with this media on their list"""
+    popularity_lesser: Int
+    """Filter by the source type of the media (max 10,000 items)"""
+    source_in: [MediaSource]
+    """Filter by the media's country of origin (max 10,000 items)"""
+    countryOfOrigin_in: [CountryCode]
+    """Filter by the media's country of origin (max 10,000 items)"""
+    countryOfOrigin_not_in: [CountryCode]
+    """The order the results will be returned in"""
+    sort: [MediaSort]
+  ): Media
+  """Media Trend query"""
+  MediaTrend(
+    """Filter by the media id"""
+    mediaId: Int
+    """Filter by date"""
+    date: Int
+    """Filter by trending amount"""
+    trending: Int
+    """Filter by score"""
+    averageScore: Int
+    """Filter by popularity"""
+    popularity: Int
+    """Filter by episode number"""
+    episode: Int
+    """Filter to stats recorded while the media was releasing"""
+    releasing: Boolean
+    """Filter by the media id"""
+    mediaId_not: Int
+    """Filter by the media id (max 10,000 items)"""
+    mediaId_in: [Int]
+    """Filter by the media id (max 10,000 items)"""
+    mediaId_not_in: [Int]
+    """Filter by date"""
+    date_greater: Int
+    """Filter by date"""
+    date_lesser: Int
+    """Filter by trending amount"""
+    trending_greater: Int
+    """Filter by trending amount"""
+    trending_lesser: Int
+    """Filter by trending amount"""
+    trending_not: Int
+    """Filter by score"""
+    averageScore_greater: Int
+    """Filter by score"""
+    averageScore_lesser: Int
+    """Filter by score"""
+    averageScore_not: Int
+    """Filter by popularity"""
+    popularity_greater: Int
+    """Filter by popularity"""
+    popularity_lesser: Int
+    """Filter by popularity"""
+    popularity_not: Int
+    """Filter by episode number"""
+    episode_greater: Int
+    """Filter by episode number"""
+    episode_lesser: Int
+    """Filter by episode number"""
+    episode_not: Int
+    """The order the results will be returned in"""
+    sort: [MediaTrendSort]
+  ): MediaTrend
+  """Airing schedule query"""
+  AiringSchedule(
+    """Filter by the id of the airing schedule item"""
+    id: Int
+    """Filter by the id of associated media"""
+    mediaId: Int
+    """Filter by the airing episode number"""
+    episode: Int
+    """Filter by the time of airing"""
+    airingAt: Int
+    """Filter to episodes that haven't yet aired"""
+    notYetAired: Boolean
+    """Filter by the id of the airing schedule item"""
+    id_not: Int
+    """Filter by the id of the airing schedule item (max 10,000 items)"""
+    id_in: [Int]
+    """Filter by the id of the airing schedule item (max 10,000 items)"""
+    id_not_in: [Int]
+    """Filter by the id of associated media"""
+    mediaId_not: Int
+    """Filter by the id of associated media (max 10,000 items)"""
+    mediaId_in: [Int]
+    """Filter by the id of associated media (max 10,000 items)"""
+    mediaId_not_in: [Int]
+    """Filter by the airing episode number"""
+    episode_not: Int
+    """Filter by the airing episode number (max 10,000 items)"""
+    episode_in: [Int]
+    """Filter by the airing episode number (max 10,000 items)"""
+    episode_not_in: [Int]
+    """Filter by the airing episode number"""
+    episode_greater: Int
+    """Filter by the airing episode number"""
+    episode_lesser: Int
+    """Filter by the time of airing"""
+    airingAt_greater: Int
+    """Filter by the time of airing"""
+    airingAt_lesser: Int
+    """The order the results will be returned in"""
+    sort: [AiringSort]
+  ): AiringSchedule
+  """Character query"""
+  Character(
+    """Filter by character id"""
+    id: Int
+    """Filter by character by if its their birthday today"""
+    isBirthday: Boolean
+    """Filter by search query"""
+    search: String
+    """Filter by character id"""
+    id_not: Int
+    """Filter by character id (max 10,000 items)"""
+    id_in: [Int]
+    """Filter by character id (max 10,000 items)"""
+    id_not_in: [Int]
+    """The order the results will be returned in"""
+    sort: [CharacterSort]
+  ): Character
+  """Staff query"""
+  Staff(
+    """Filter by the staff id"""
+    id: Int
+    """Filter by staff by if its their birthday today"""
+    isBirthday: Boolean
+    """Filter by search query"""
+    search: String
+    """Filter by the staff id"""
+    id_not: Int
+    """Filter by the staff id (max 10,000 items)"""
+    id_in: [Int]
+    """Filter by the staff id (max 10,000 items)"""
+    id_not_in: [Int]
+    """The order the results will be returned in"""
+    sort: [StaffSort]
+  ): Staff
+  """Collection of all the possible media genres"""
+  GenreCollection: [String]
+  """Collection of all the possible media tags"""
+  MediaTagCollection(
+    """Mod Only"""
+    status: Int
+  ): [MediaTag]
+  """Studio query"""
+  Studio(
+    """Filter by the studio id"""
+    id: Int
+    """Filter by search query"""
+    search: String
+    """Filter by the studio id"""
+    id_not: Int
+    """Filter by the studio id (max 10,000 items)"""
+    id_in: [Int]
+    """Filter by the studio id (max 10,000 items)"""
+    id_not_in: [Int]
+    """The order the results will be returned in"""
+    sort: [StudioSort]
+  ): Studio
+  """Review query"""
+  Review(
+    """Filter by Review id"""
+    id: Int
+    """Filter by media id"""
+    mediaId: Int
+    """Filter by user id"""
+    userId: Int
+    """Filter by media type"""
+    mediaType: MediaType
+    """The order the results will be returned in"""
+    sort: [ReviewSort]
+  ): Review
+  """Provide AniList markdown to be converted to html (Requires auth)"""
+  Markdown(
+    """The markdown to be parsed to html"""
+    markdown: String!
+  ): ParsedMarkdown
+  """Site statistics query"""
+  SiteStatistics: SiteStatistics
+  """ExternalLinkSource collection query"""
+  ExternalLinkSourceCollection(
+    """Filter by the link id"""
+    id: Int
+    type: ExternalLinkType
+    mediaType: ExternalLinkMediaType
+  ): [MediaExternalLink]
 }
 
-type AnimePage {
-  data: [Anime!]!
-  page_info: PageInfo!
+"""
+Page of data. Limited to a max depth of 5000 entries. This is calculated as the page parameter multiplied by the perPage parameter.
+"""
+type Page {
+  """The pagination information"""
+  pageInfo: PageInfo
+  media(
+    """Filter by the media id"""
+    id: Int
+    """Filter by the media's MyAnimeList id"""
+    idMal: Int
+    """Filter by the start date of the media"""
+    startDate: FuzzyDateInt
+    """Filter by the end date of the media"""
+    endDate: FuzzyDateInt
+    """Filter by the season the media was released in"""
+    season: MediaSeason
+    """
+    The year of the season (Winter 2017 would also include December 2016 releases). Requires season argument
+    """
+    seasonYear: Int
+    """Filter by the media's type"""
+    type: MediaType
+    """Filter by the media's format"""
+    format: MediaFormat
+    """Filter by the media's current release status"""
+    status: MediaStatus
+    """Filter by amount of episodes the media has"""
+    episodes: Int
+    """Filter by the media's episode length"""
+    duration: Int
+    """Filter by the media's chapter count"""
+    chapters: Int
+    """Filter by the media's volume count"""
+    volumes: Int
+    """Filter by if the media's intended for 18+ adult audiences"""
+    isAdult: Boolean
+    """Filter by the media's genres"""
+    genre: String
+    """Filter by the media's tags"""
+    tag: String
+    """
+    Only apply the tags filter argument to tags above this rank. Default: 18
+    """
+    minimumTagRank: Int
+    """Filter by the media's tags with in a tag category"""
+    tagCategory: String
+    """Filter by the media on the authenticated user's lists"""
+    onList: Boolean
+    """Filter media by sites name with a online streaming or reading license"""
+    licensedBy: String
+    """Filter media by sites id with a online streaming or reading license"""
+    licensedById: Int
+    """Filter by the media's average score"""
+    averageScore: Int
+    """Filter by the number of users with this media on their list"""
+    popularity: Int
+    """Filter by the source type of the media"""
+    source: MediaSource
+    """Filter by the media's country of origin"""
+    countryOfOrigin: CountryCode
+    """If the media is officially licensed or a self-published doujin release"""
+    isLicensed: Boolean
+    """Filter by search query"""
+    search: String
+    """Filter by the media id"""
+    id_not: Int
+    """Filter by the media id (max 10,000 items)"""
+    id_in: [Int]
+    """Filter by the media id (max 10,000 items)"""
+    id_not_in: [Int]
+    """Filter by the media's MyAnimeList id"""
+    idMal_not: Int
+    """Filter by the media's MyAnimeList id (max 10,000 items)"""
+    idMal_in: [Int]
+    """Filter by the media's MyAnimeList id (max 10,000 items)"""
+    idMal_not_in: [Int]
+    """Filter by the start date of the media"""
+    startDate_greater: FuzzyDateInt
+    """Filter by the start date of the media"""
+    startDate_lesser: FuzzyDateInt
+    """Filter by the start date of the media"""
+    startDate_like: String
+    """Filter by the end date of the media"""
+    endDate_greater: FuzzyDateInt
+    """Filter by the end date of the media"""
+    endDate_lesser: FuzzyDateInt
+    """Filter by the end date of the media"""
+    endDate_like: String
+    """Filter by the media's format (max 10,000 items)"""
+    format_in: [MediaFormat]
+    """Filter by the media's format"""
+    format_not: MediaFormat
+    """Filter by the media's format (max 10,000 items)"""
+    format_not_in: [MediaFormat]
+    """Filter by the media's current release status (max 10,000 items)"""
+    status_in: [MediaStatus]
+    """Filter by the media's current release status"""
+    status_not: MediaStatus
+    """Filter by the media's current release status (max 10,000 items)"""
+    status_not_in: [MediaStatus]
+    """Filter by amount of episodes the media has"""
+    episodes_greater: Int
+    """Filter by amount of episodes the media has"""
+    episodes_lesser: Int
+    """Filter by the media's episode length"""
+    duration_greater: Int
+    """Filter by the media's episode length"""
+    duration_lesser: Int
+    """Filter by the media's chapter count"""
+    chapters_greater: Int
+    """Filter by the media's chapter count"""
+    chapters_lesser: Int
+    """Filter by the media's volume count"""
+    volumes_greater: Int
+    """Filter by the media's volume count"""
+    volumes_lesser: Int
+    """Filter by the media's genres (max 10,000 items)"""
+    genre_in: [String]
+    """Filter by the media's genres (max 10,000 items)"""
+    genre_not_in: [String]
+    """Filter by the media's tags (max 10,000 items)"""
+    tag_in: [String]
+    """Filter by the media's tags (max 10,000 items)"""
+    tag_not_in: [String]
+    """Filter by the media's tags with in a tag category (max 10,000 items)"""
+    tagCategory_in: [String]
+    """Filter by the media's tags with in a tag category (max 10,000 items)"""
+    tagCategory_not_in: [String]
+    """
+    Filter media by sites name with a online streaming or reading license (max 10,000 items)
+    """
+    licensedBy_in: [String]
+    """
+    Filter media by sites id with a online streaming or reading license (max 10,000 items)
+    """
+    licensedById_in: [Int]
+    """Filter by the media's average score"""
+    averageScore_not: Int
+    """Filter by the media's average score"""
+    averageScore_greater: Int
+    """Filter by the media's average score"""
+    averageScore_lesser: Int
+    """Filter by the number of users with this media on their list"""
+    popularity_not: Int
+    """Filter by the number of users with this media on their list"""
+    popularity_greater: Int
+    """Filter by the number of users with this media on their list"""
+    popularity_lesser: Int
+    """Filter by the source type of the media (max 10,000 items)"""
+    source_in: [MediaSource]
+    """Filter by the media's country of origin (max 10,000 items)"""
+    countryOfOrigin_in: [CountryCode]
+    """Filter by the media's country of origin (max 10,000 items)"""
+    countryOfOrigin_not_in: [CountryCode]
+    """The order the results will be returned in"""
+    sort: [MediaSort]
+  ): [Media]
+  characters(
+    """Filter by character id"""
+    id: Int
+    """Filter by character by if its their birthday today"""
+    isBirthday: Boolean
+    """Filter by search query"""
+    search: String
+    """Filter by character id"""
+    id_not: Int
+    """Filter by character id (max 10,000 items)"""
+    id_in: [Int]
+    """Filter by character id (max 10,000 items)"""
+    id_not_in: [Int]
+    """The order the results will be returned in"""
+    sort: [CharacterSort]
+  ): [Character]
+  staff(
+    """Filter by the staff id"""
+    id: Int
+    """Filter by staff by if its their birthday today"""
+    isBirthday: Boolean
+    """Filter by search query"""
+    search: String
+    """Filter by the staff id"""
+    id_not: Int
+    """Filter by the staff id (max 10,000 items)"""
+    id_in: [Int]
+    """Filter by the staff id (max 10,000 items)"""
+    id_not_in: [Int]
+    """The order the results will be returned in"""
+    sort: [StaffSort]
+  ): [Staff]
+  studios(
+    """Filter by the studio id"""
+    id: Int
+    """Filter by search query"""
+    search: String
+    """Filter by the studio id"""
+    id_not: Int
+    """Filter by the studio id (max 10,000 items)"""
+    id_in: [Int]
+    """Filter by the studio id (max 10,000 items)"""
+    id_not_in: [Int]
+    """The order the results will be returned in"""
+    sort: [StudioSort]
+  ): [Studio]
+  airingSchedules(
+    """Filter by the id of the airing schedule item"""
+    id: Int
+    """Filter by the id of associated media"""
+    mediaId: Int
+    """Filter by the airing episode number"""
+    episode: Int
+    """Filter by the time of airing"""
+    airingAt: Int
+    """Filter to episodes that haven't yet aired"""
+    notYetAired: Boolean
+    """Filter by the id of the airing schedule item"""
+    id_not: Int
+    """Filter by the id of the airing schedule item (max 10,000 items)"""
+    id_in: [Int]
+    """Filter by the id of the airing schedule item (max 10,000 items)"""
+    id_not_in: [Int]
+    """Filter by the id of associated media"""
+    mediaId_not: Int
+    """Filter by the id of associated media (max 10,000 items)"""
+    mediaId_in: [Int]
+    """Filter by the id of associated media (max 10,000 items)"""
+    mediaId_not_in: [Int]
+    """Filter by the airing episode number"""
+    episode_not: Int
+    """Filter by the airing episode number (max 10,000 items)"""
+    episode_in: [Int]
+    """Filter by the airing episode number (max 10,000 items)"""
+    episode_not_in: [Int]
+    """Filter by the airing episode number"""
+    episode_greater: Int
+    """Filter by the airing episode number"""
+    episode_lesser: Int
+    """Filter by the time of airing"""
+    airingAt_greater: Int
+    """Filter by the time of airing"""
+    airingAt_lesser: Int
+    """The order the results will be returned in"""
+    sort: [AiringSort]
+  ): [AiringSchedule]
+  mediaTrends(
+    """Filter by the media id"""
+    mediaId: Int
+    """Filter by date"""
+    date: Int
+    """Filter by trending amount"""
+    trending: Int
+    """Filter by score"""
+    averageScore: Int
+    """Filter by popularity"""
+    popularity: Int
+    """Filter by episode number"""
+    episode: Int
+    """Filter to stats recorded while the media was releasing"""
+    releasing: Boolean
+    """Filter by the media id"""
+    mediaId_not: Int
+    """Filter by the media id (max 10,000 items)"""
+    mediaId_in: [Int]
+    """Filter by the media id (max 10,000 items)"""
+    mediaId_not_in: [Int]
+    """Filter by date"""
+    date_greater: Int
+    """Filter by date"""
+    date_lesser: Int
+    """Filter by trending amount"""
+    trending_greater: Int
+    """Filter by trending amount"""
+    trending_lesser: Int
+    """Filter by trending amount"""
+    trending_not: Int
+    """Filter by score"""
+    averageScore_greater: Int
+    """Filter by score"""
+    averageScore_lesser: Int
+    """Filter by score"""
+    averageScore_not: Int
+    """Filter by popularity"""
+    popularity_greater: Int
+    """Filter by popularity"""
+    popularity_lesser: Int
+    """Filter by popularity"""
+    popularity_not: Int
+    """Filter by episode number"""
+    episode_greater: Int
+    """Filter by episode number"""
+    episode_lesser: Int
+    """Filter by episode number"""
+    episode_not: Int
+    """The order the results will be returned in"""
+    sort: [MediaTrendSort]
+  ): [MediaTrend]
+  reviews(
+    """Filter by Review id"""
+    id: Int
+    """Filter by media id"""
+    mediaId: Int
+    """Filter by user id"""
+    userId: Int
+    """Filter by media type"""
+    mediaType: MediaType
+    """The order the results will be returned in"""
+    sort: [ReviewSort]
+  ): [Review]
 }
 
 type PageInfo {
-  total: Int!
-  per_page: Int!
-  current_page: Int!
-  last_page: Int!
-  has_next_page: Boolean!
+  """
+  The total number of items. Note: This value is not guaranteed to be accurate, do not rely on this for logic
+  """
+  total: Int
+  """The count on a page"""
+  perPage: Int
+  """The current page"""
+  currentPage: Int
+  """The last page"""
+  lastPage: Int
+  """If there is another page"""
+  hasNextPage: Boolean
 }
 
-enum AnimeSort {
-  # ID Sorting
+"""User sort enums"""
+enum UserSort {
+  ID
   ID_DESC
-  ID_ASC
+  USERNAME
+  USERNAME_DESC
+  WATCHED_TIME
+  WATCHED_TIME_DESC
+  CHAPTERS_READ
+  CHAPTERS_READ_DESC
+  SEARCH_MATCH
+}
 
-  # Title Sorting
+"""Notification type enum"""
+enum NotificationType {
+  """A user has sent you message"""
+  ACTIVITY_MESSAGE
+  """A user has replied to your activity"""
+  ACTIVITY_REPLY
+  """A user has followed you"""
+  FOLLOWING
+  """A user has mentioned you in their activity"""
+  ACTIVITY_MENTION
+  """A user has mentioned you in a forum comment"""
+  THREAD_COMMENT_MENTION
+  """A user has commented in one of your subscribed forum threads"""
+  THREAD_SUBSCRIBED
+  """A user has replied to your forum comment"""
+  THREAD_COMMENT_REPLY
+  """An anime you are currently watching has aired"""
+  AIRING
+  """A user has liked your activity"""
+  ACTIVITY_LIKE
+  """A user has liked your activity reply"""
+  ACTIVITY_REPLY_LIKE
+  """A user has liked your forum thread"""
+  THREAD_LIKE
+  """A user has liked your forum comment"""
+  THREAD_COMMENT_LIKE
+  """A user has replied to activity you have also replied to"""
+  ACTIVITY_REPLY_SUBSCRIBED
+  """
+  A new anime or manga has been added to the site where its related media is on the user's list
+  """
+  RELATED_MEDIA_ADDITION
+  """
+  An anime or manga has had a data change that affects how a user may track it in their lists
+  """
+  MEDIA_DATA_CHANGE
+  """
+  Anime or manga entries on the user's list have been merged into a single entry
+  """
+  MEDIA_MERGE
+  """An anime or manga on the user's list has been deleted from the site"""
+  MEDIA_DELETION
+  """A user's submission has been accepted, partially accepted, or rejected"""
+  MEDIA_SUBMISSION_UPDATE
+  """
+  A user's staff submission has been accepted, partially accepted, or rejected
+  """
+  STAFF_SUBMISSION_UPDATE
+  """
+  A user's character submission has been accepted, partially accepted, or rejected
+  """
+  CHARACTER_SUBMISSION_UPDATE
+}
+
+"""Media list watching/reading status enum."""
+enum MediaListStatus {
+  """Currently watching/reading"""
+  CURRENT
+  """Planning to watch/read"""
+  PLANNING
+  """Finished watching/reading"""
+  COMPLETED
+  """Stopped watching/reading before completing"""
+  DROPPED
+  """Paused watching/reading"""
+  PAUSED
+  """Re-watching/reading"""
+  REPEATING
+}
+
+type MediaConnection {
+  edges: [MediaEdge]
+  nodes: [Media]
+  """The pagination information"""
+  pageInfo: PageInfo
+}
+
+"""Media connection edge"""
+type MediaEdge {
+  node: Media
+  """The id of the connection"""
+  id: Int
+  """The type of relation to the parent model"""
+  relationType(
+    """Provide 3 to use new version 3 of relation enum"""
+    version: Int
+  ): MediaRelation
+  """
+  If the studio is the main animation studio of the media (For Studio->MediaConnection field only)
+  """
+  isMainStudio: Boolean!
+  """The characters in the media voiced by the parent actor"""
+  characters: [Character]
+  """The characters role in the media"""
+  characterRole: CharacterRole
+  """Media specific character name"""
+  characterName: String
+  """Notes regarding the VA's role for the character"""
+  roleNotes: String
+  """
+  Used for grouping roles where multiple dubs exist for the same language. Either dubbing company name or language variant.
+  """
+  dubGroup: String
+  """The role of the staff member in the production of the media"""
+  staffRole: String
+  """The voice actors of the character"""
+  voiceActors(language: StaffLanguage, sort: [StaffSort]): [Staff]
+  """The voice actors of the character with role date"""
+  voiceActorRoles(language: StaffLanguage, sort: [StaffSort]): [StaffRoleType]
+  """The order the media should be displayed from the users favourites"""
+  favouriteOrder: Int
+}
+
+"""Anime or Manga"""
+type Media {
+  """The id of the media"""
+  id: Int!
+  """The mal id of the media"""
+  idMal: Int
+  """The official titles of the media in various languages"""
+  title: MediaTitle
+  """The type of the media; anime or manga"""
+  type: MediaType
+  """The format the media was released in"""
+  format: MediaFormat
+  """The current releasing status of the media"""
+  status(
+    """Provide 2 to use new version 2 of sources enum"""
+    version: Int
+  ): MediaStatus
+  """Short description of the media's story and characters"""
+  description(
+    """Return the string in pre-parsed html instead of markdown"""
+    asHtml: Boolean
+  ): String
+  """The first official release date of the media"""
+  startDate: FuzzyDate
+  """The last official release date of the media"""
+  endDate: FuzzyDate
+  """The season the media was initially released in"""
+  season: MediaSeason
+  """The season year the media was initially released in"""
+  seasonYear: Int
+  """The year & season the media was initially released in"""
+  seasonInt: Int @deprecated(reason: "")
+  """The amount of episodes the anime has when complete"""
+  episodes: Int
+  """The general length of each anime episode in minutes"""
+  duration: Int
+  """The amount of chapters the manga has when complete"""
+  chapters: Int
+  """The amount of volumes the manga has when complete"""
+  volumes: Int
+  """Where the media was created. (ISO 3166-1 alpha-2)"""
+  countryOfOrigin: CountryCode
+  """If the media is officially licensed or a self-published doujin release"""
+  isLicensed: Boolean
+  """Source type the media was adapted from."""
+  source(
+    """Provide 2 or 3 to use new version 2 or 3 of sources enum"""
+    version: Int
+  ): MediaSource
+  """Official Twitter hashtags for the media"""
+  hashtag: String
+  """Media trailer or advertisement"""
+  trailer: MediaTrailer
+  """When the media's data was last updated"""
+  updatedAt: Int
+  """The cover images of the media"""
+  coverImage: MediaCoverImage
+  """The banner image of the media"""
+  bannerImage: String
+  """The genres of the media"""
+  genres: [String]
+  """Alternative titles of the media"""
+  synonyms: [String]
+  """A weighted average score of all the user's scores of the media"""
+  averageScore: Int
+  """Mean score of all the user's scores of the media"""
+  meanScore: Int
+  """The number of users with the media on their list"""
+  popularity: Int
+  """
+  Locked media may not be added to lists our favorited. This may be due to the entry pending for deletion or other reasons.
+  """
+  isLocked: Boolean
+  """The amount of related activity in the past hour"""
+  trending: Int
+  """The amount of user's who have favourited the media"""
+  favourites: Int
+  """List of tags that describes elements and themes of the media"""
+  tags: [MediaTag]
+  """Other media in the same or connecting franchise"""
+  relations: MediaConnection
+  """The characters in the media"""
+  characters(
+    sort: [CharacterSort]
+    role: CharacterRole
+    """The page"""
+    page: Int
+    """The amount of entries per page, max 25"""
+    perPage: Int
+  ): CharacterConnection
+  """The staff who produced the media"""
+  staff(
+    sort: [StaffSort]
+    """The page"""
+    page: Int
+    """The amount of entries per page, max 25"""
+    perPage: Int
+  ): StaffConnection
+  """The companies who produced the media"""
+  studios(sort: [StudioSort], isMain: Boolean): StudioConnection
+  """If the media is marked as favourite by the current authenticated user"""
+  isFavourite: Boolean!
+  """If the media is blocked from being added to favourites"""
+  isFavouriteBlocked: Boolean!
+  """If the media is intended only for 18+ adult audiences"""
+  isAdult: Boolean
+  """The media's next episode airing schedule"""
+  nextAiringEpisode: AiringSchedule
+  """The media's entire airing schedule"""
+  airingSchedule(
+    """Filter to episodes that have not yet aired"""
+    notYetAired: Boolean
+    """The page"""
+    page: Int
+    """The amount of entries per page, max 25"""
+    perPage: Int
+  ): AiringScheduleConnection
+  """The media's daily trend stats"""
+  trends(
+    sort: [MediaTrendSort]
+    """Filter to stats recorded while the media was releasing"""
+    releasing: Boolean
+    """The page"""
+    page: Int
+    """The amount of entries per page, max 25"""
+    perPage: Int
+  ): MediaTrendConnection
+  """External links to another site related to the media"""
+  externalLinks: [MediaExternalLink]
+  """Data and links to legal streaming episodes on external sites"""
+  streamingEpisodes: [MediaStreamingEpisode]
+  """
+  The ranking of the media in a particular time span and format compared to other media
+  """
+  rankings: [MediaRank]
+  """User reviews of the media"""
+  reviews(
+    limit: Int
+    sort: [ReviewSort]
+    """The page"""
+    page: Int
+    """The amount of entries per page, max 25"""
+    perPage: Int
+  ): ReviewConnection
+  stats: MediaStats
+  """The url for the media page on the AniList website"""
+  siteUrl: String
+  """
+  If the media should have forum thread automatically created for it on airing episode release
+  """
+  autoCreateForumThread: Boolean
+  """If the media is blocked from being recommended to/from"""
+  isRecommendationBlocked: Boolean
+  """If the media is blocked from being reviewed"""
+  isReviewBlocked: Boolean
+  """Notes for site moderators"""
+  modNotes: String
+}
+
+"""The official titles of the media in various languages"""
+type MediaTitle {
+  """The romanization of the native language title"""
+  romaji(stylised: Boolean): String
+  """The official english title"""
+  english(stylised: Boolean): String
+  """Official title in it's native language"""
+  native(stylised: Boolean): String
+  """
+  The currently authenticated users preferred title language. Default romaji for non-authenticated
+  """
+  userPreferred: String
+}
+
+"""Media type enum, anime or manga."""
+enum MediaType {
+  """Japanese Anime"""
+  ANIME
+  """Asian comic"""
+  MANGA
+}
+
+"""The format the media was released in"""
+enum MediaFormat {
+  """Anime broadcast on television"""
+  TV
+  """Anime which are under 15 minutes in length and broadcast on television"""
+  TV_SHORT
+  """Anime movies with a theatrical release"""
+  MOVIE
+  """
+  Special episodes that have been included in DVD/Blu-ray releases, picture dramas, pilots, etc
+  """
+  SPECIAL
+  """
+  (Original Video Animation) Anime that have been released directly on DVD/Blu-ray without originally going through a theatrical release or television broadcast
+  """
+  OVA
+  """
+  (Original Net Animation) Anime that have been originally released online or are only available through streaming services.
+  """
+  ONA
+  """Short anime released as a music video"""
+  MUSIC
+  """Professionally published manga with more than one chapter"""
+  MANGA
+  """Written books released as a series of light novels"""
+  NOVEL
+  """Manga with just one chapter"""
+  ONE_SHOT
+}
+
+"""The current releasing status of the media"""
+enum MediaStatus {
+  """Has completed and is no longer being released"""
+  FINISHED
+  """Currently releasing"""
+  RELEASING
+  """To be released at a later date"""
+  NOT_YET_RELEASED
+  """Ended before the work could be finished"""
+  CANCELLED
+  """
+  Version 2 only. Is currently paused from releasing and will resume at a later date
+  """
+  HIATUS
+}
+
+"""Date object that allows for incomplete date values (fuzzy)"""
+type FuzzyDate {
+  """Numeric Year (2017)"""
+  year: Int
+  """Numeric Month (3)"""
+  month: Int
+  """Numeric Day (24)"""
+  day: Int
+}
+
+enum MediaSeason {
+  """Predominantly started airing between January and March"""
+  WINTER
+  """Predominantly started airing between April and June"""
+  SPRING
+  """Predominantly started airing between July and September"""
+  SUMMER
+  """Predominantly started airing between October and November"""
+  FALL
+}
+
+"""ISO 3166-1 alpha-2 country code"""
+scalar CountryCode
+
+"""Source type the media was adapted from"""
+enum MediaSource {
+  """An original production not based of another work"""
+  ORIGINAL
+  """Asian comic book"""
+  MANGA
+  """Written work published in volumes"""
+  LIGHT_NOVEL
+  """Video game driven primary by text and narrative"""
+  VISUAL_NOVEL
+  """Video game"""
+  VIDEO_GAME
+  """Other"""
+  OTHER
+  """Version 2+ only. Written works not published in volumes"""
+  NOVEL
+  """Version 2+ only. Self-published works"""
+  DOUJINSHI
+  """Version 2+ only. Japanese Anime"""
+  ANIME
+  """Version 3 only. Written works published online"""
+  WEB_NOVEL
+  """Version 3 only. Live action media such as movies or TV show"""
+  LIVE_ACTION
+  """Version 3 only. Games excluding video games"""
+  GAME
+  """Version 3 only. Comics excluding manga"""
+  COMIC
+  """Version 3 only. Multimedia project"""
+  MULTIMEDIA_PROJECT
+  """Version 3 only. Picture book"""
+  PICTURE_BOOK
+}
+
+"""Media trailer or advertisement"""
+type MediaTrailer {
+  """The trailer video id"""
+  id: String
+  """
+  The site the video is hosted by (Currently either youtube or dailymotion)
+  """
+  site: String
+  """The url for the thumbnail image of the video"""
+  thumbnail: String
+}
+
+type MediaCoverImage {
+  """
+  The cover image url of the media at its largest size. If this size isn't available, large will be provided instead.
+  """
+  extraLarge: String
+  """The cover image url of the media at a large size"""
+  large: String
+  """The cover image url of the media at medium size"""
+  medium: String
+  """Average #hex color of cover image"""
+  color: String
+}
+
+"""A tag that describes a theme or element of the media"""
+type MediaTag {
+  """The id of the tag"""
+  id: Int!
+  """The name of the tag"""
+  name: String!
+  """A general description of the tag"""
+  description: String
+  """The categories of tags this tag belongs to"""
+  category: String
+  """The relevance ranking of the tag out of the 100 for this media"""
+  rank: Int
+  """If the tag could be a spoiler for any media"""
+  isGeneralSpoiler: Boolean
+  """If the tag is a spoiler for this media"""
+  isMediaSpoiler: Boolean
+  """If the tag is only for adult 18+ media"""
+  isAdult: Boolean
+  """The user who submitted the tag"""
+  userId: Int
+}
+
+"""Character sort enums"""
+enum CharacterSort {
+  ID
+  ID_DESC
+  ROLE
+  ROLE_DESC
+  SEARCH_MATCH
+  FAVOURITES
+  FAVOURITES_DESC
+  """Order manually decided by moderators"""
+  RELEVANCE
+}
+
+"""The role the character plays in the media"""
+enum CharacterRole {
+  """A primary character role in the media"""
+  MAIN
+  """A supporting character role in the media"""
+  SUPPORTING
+  """A background character in the media"""
+  BACKGROUND
+}
+
+type CharacterConnection {
+  edges: [CharacterEdge]
+  nodes: [Character]
+  """The pagination information"""
+  pageInfo: PageInfo
+}
+
+"""Character connection edge"""
+type CharacterEdge {
+  node: Character
+  """The id of the connection"""
+  id: Int
+  """The characters role in the media"""
+  role: CharacterRole
+  """Media specific character name"""
+  name: String
+  """The voice actors of the character"""
+  voiceActors(language: StaffLanguage, sort: [StaffSort]): [Staff]
+  """The voice actors of the character with role date"""
+  voiceActorRoles(language: StaffLanguage, sort: [StaffSort]): [StaffRoleType]
+  """The media the character is in"""
+  media: [Media]
+  """The order the character should be displayed from the users favourites"""
+  favouriteOrder: Int
+}
+
+"""A character that features in an anime or manga"""
+type Character {
+  """The id of the character"""
+  id: Int!
+  """The names of the character"""
+  name: CharacterName
+  """Character images"""
+  image: CharacterImage
+  """A general description of the character"""
+  description(
+    """Return the string in pre-parsed html instead of markdown"""
+    asHtml: Boolean
+  ): String
+  """
+  The character's gender. Usually Male, Female, or Non-binary but can be any string.
+  """
+  gender: String
+  """The character's birth date"""
+  dateOfBirth: FuzzyDate
+  """
+  The character's age. Note this is a string, not an int, it may contain further text and additional ages.
+  """
+  age: String
+  """The characters blood type"""
+  bloodType: String
+  """
+  If the character is marked as favourite by the currently authenticated user
+  """
+  isFavourite: Boolean!
+  """If the character is blocked from being added to favourites"""
+  isFavouriteBlocked: Boolean!
+  """The url for the character page on the AniList website"""
+  siteUrl: String
+  """Media that includes the character"""
+  media(
+    sort: [MediaSort]
+    type: MediaType
+    onList: Boolean
+    """The page"""
+    page: Int
+    """The amount of entries per page, max 25"""
+    perPage: Int
+  ): MediaConnection
+  updatedAt: Int @deprecated(reason: "No data available")
+  """The amount of user's who have favourited the character"""
+  favourites: Int
+  """Notes for site moderators"""
+  modNotes: String
+}
+
+"""The names of the character"""
+type CharacterName {
+  """The character's given name"""
+  first: String
+  """The character's middle name"""
+  middle: String
+  """The character's surname"""
+  last: String
+  """The character's first and last name"""
+  full: String
+  """The character's full name in their native language"""
+  native: String
+  """Other names the character might be referred to as"""
+  alternative: [String]
+  """Other names the character might be referred to as but are spoilers"""
+  alternativeSpoiler: [String]
+  """
+  The currently authenticated users preferred name language. Default romaji for non-authenticated
+  """
+  userPreferred: String
+}
+
+type CharacterImage {
+  """The character's image of media at its largest size"""
+  large: String
+  """The character's image of media at medium size"""
+  medium: String
+}
+
+"""Media sort enums"""
+enum MediaSort {
+  ID
+  ID_DESC
   TITLE_ROMAJI
   TITLE_ROMAJI_DESC
   TITLE_ENGLISH
   TITLE_ENGLISH_DESC
   TITLE_NATIVE
   TITLE_NATIVE_DESC
-
-  # Score & Stats Sorting
-  SCORE_DESC
-  SCORE_ASC
-  POPULARITY_DESC
-  POPULARITY_ASC
-  TRENDING_DESC
-  TRENDING_ASC
-  FAVORITES_DESC
-  FAVORITES_ASC
-
-  # Date Sorting
-  START_DATE_DESC
-  START_DATE_ASC
-  END_DATE_DESC
-  END_DATE_ASC
-  UPDATED_AT_DESC
-  UPDATED_AT_ASC
-  AIR_WEEK_DESC
-  AIR_WEEK_ASC
-
-  # Episode Sorting
-  EPISODES_DESC
-  EPISODES_ASC
-  DURATION_DESC
-  DURATION_ASC
-  LATEST_EPISODE_DESC
-  LATEST_EPISODE_ASC
-  NEXT_EPISODE_DESC
-  NEXT_EPISODE_ASC
-  LAST_EPISODE_DESC
-  LAST_EPISODE_ASC
-
-  # Season Sorting
-  SEASON_YEAR_DESC
-  SEASON_YEAR_ASC
-
-  # Format & Type
-  FORMAT_ASC
-  FORMAT_DESC
-  TYPE_ASC
+  TYPE
   TYPE_DESC
-
-  # Status
-  STATUS_ASC
+  FORMAT
+  FORMAT_DESC
+  START_DATE
+  START_DATE_DESC
+  END_DATE
+  END_DATE_DESC
+  SCORE
+  SCORE_DESC
+  POPULARITY
+  POPULARITY_DESC
+  TRENDING
+  TRENDING_DESC
+  EPISODES
+  EPISODES_DESC
+  DURATION
+  DURATION_DESC
+  STATUS
   STATUS_DESC
+  CHAPTERS
+  CHAPTERS_DESC
+  VOLUMES
+  VOLUMES_DESC
+  UPDATED_AT
+  UPDATED_AT_DESC
+  SEARCH_MATCH
+  FAVOURITES
+  FAVOURITES_DESC
 }
 
-enum MediaType {
-  ANIME
-  MANGA
+"""The primary language of the voice actor"""
+enum StaffLanguage {
+  """Japanese"""
+  JAPANESE
+  """English"""
+  ENGLISH
+  """Korean"""
+  KOREAN
+  """Italian"""
+  ITALIAN
+  """Spanish"""
+  SPANISH
+  """Portuguese"""
+  PORTUGUESE
+  """French"""
+  FRENCH
+  """German"""
+  GERMAN
+  """Hebrew"""
+  HEBREW
+  """Hungarian"""
+  HUNGARIAN
 }
 
-enum MediaFormat {
-  TV
-  TV_SHORT
-  MOVIE
-  SPECIAL
-  OVA
-  ONA
-  MUSIC
-  MANGA
-  NOVEL
-  ONE_SHOT
+"""Staff sort enums"""
+enum StaffSort {
+  ID
+  ID_DESC
+  ROLE
+  ROLE_DESC
+  LANGUAGE
+  LANGUAGE_DESC
+  SEARCH_MATCH
+  FAVOURITES
+  FAVOURITES_DESC
+  """Order manually decided by moderators"""
+  RELEVANCE
 }
 
-enum MediaStatus {
-  FINISHED
-  RELEASING
-  NOT_YET_RELEASED
-  CANCELLED
-  HIATUS
+"""Voice actors or production staff"""
+type Staff {
+  """The id of the staff member"""
+  id: Int!
+  """The names of the staff member"""
+  name: StaffName
+  """The primary language the staff member dub's in"""
+  language: StaffLanguage @deprecated(reason: "Replaced with languageV2")
+  """
+  The primary language of the staff member. Current values: Japanese, English, Korean, Italian, Spanish, Portuguese, French, German, Hebrew, Hungarian, Chinese, Arabic, Filipino, Catalan, Finnish, Turkish, Dutch, Swedish, Thai, Tagalog, Malaysian, Indonesian, Vietnamese, Nepali, Hindi, Urdu
+  """
+  languageV2: String
+  """The staff images"""
+  image: StaffImage
+  """A general description of the staff member"""
+  description(
+    """Return the string in pre-parsed html instead of markdown"""
+    asHtml: Boolean
+  ): String
+  """The person's primary occupations"""
+  primaryOccupations: [String]
+  """
+  The staff's gender. Usually Male, Female, or Non-binary but can be any string.
+  """
+  gender: String
+  dateOfBirth: FuzzyDate
+  dateOfDeath: FuzzyDate
+  """The person's age in years"""
+  age: Int
+  """
+  [startYear, endYear] (If the 2nd value is not present staff is still active)
+  """
+  yearsActive: [Int]
+  """The persons birthplace or hometown"""
+  homeTown: String
+  """The persons blood type"""
+  bloodType: String
+  """
+  If the staff member is marked as favourite by the currently authenticated user
+  """
+  isFavourite: Boolean!
+  """If the staff member is blocked from being added to favourites"""
+  isFavouriteBlocked: Boolean!
+  """The url for the staff page on the AniList website"""
+  siteUrl: String
+  """Media where the staff member has a production role"""
+  staffMedia(
+    sort: [MediaSort]
+    type: MediaType
+    onList: Boolean
+    """The page"""
+    page: Int
+    """The amount of entries per page, max 25"""
+    perPage: Int
+  ): MediaConnection
+  """Characters voiced by the actor"""
+  characters(
+    sort: [CharacterSort]
+    """The page"""
+    page: Int
+    """The amount of entries per page, max 25"""
+    perPage: Int
+  ): CharacterConnection
+  """
+  Media the actor voiced characters in. (Same data as characters with media as node instead of characters)
+  """
+  characterMedia(
+    sort: [MediaSort]
+    onList: Boolean
+    """The page"""
+    page: Int
+    """The amount of entries per page, max 25"""
+    perPage: Int
+  ): MediaConnection
+  updatedAt: Int @deprecated(reason: "No data available")
+  """Staff member that the submission is referencing"""
+  staff: Staff
+  """Status of the submission"""
+  submissionStatus: Int
+  """Inner details of submission status"""
+  submissionNotes: String
+  """The amount of user's who have favourited the staff member"""
+  favourites: Int
+  """Notes for site moderators"""
+  modNotes: String
 }
 
-enum MediaSeason {
-  WINTER
-  SPRING
-  SUMMER
-  FALL
+"""The names of the staff member"""
+type StaffName {
+  """The person's given name"""
+  first: String
+  """The person's middle name"""
+  middle: String
+  """The person's surname"""
+  last: String
+  """The person's first and last name"""
+  full: String
+  """The person's full name in their native language"""
+  native: String
+  """Other names the staff member might be referred to as (pen names)"""
+  alternative: [String]
+  """
+  The currently authenticated users preferred name language. Default romaji for non-authenticated
+  """
+  userPreferred: String
 }
 
-enum MediaSource {
-  ORIGINAL
-  MANGA
-  LIGHT_NOVEL
-  VISUAL_NOVEL
-  VIDEO_GAME
-  OTHER
-  NOVEL
-  DOUJINSHI
-  ANIME
-  WEB_NOVEL
-  LIVE_ACTION
-  GAME
-  COMIC
-  MULTIMEDIA_PROJECT
-  PICTURE_BOOK
+type StaffImage {
+  """The person's image of media at its largest size"""
+  large: String
+  """The person's image of media at medium size"""
+  medium: String
 }
 
-enum CharacterRole {
-  MAIN
-  SUPPORTING
-  BACKGROUND
+"""Voice actor role for a character"""
+type StaffRoleType {
+  """The voice actors of the character"""
+  voiceActor: Staff
+  """Notes regarding the VA's role for the character"""
+  roleNotes: String
+  """
+  Used for grouping roles where multiple dubs exist for the same language. Either dubbing company name or language variant.
+  """
+  dubGroup: String
 }
 
-enum MediaRelation {
-  ADAPTATION
-  PREQUEL
-  SEQUEL
-  PARENT
-  SIDE_STORY
-  CHARACTER
-  SUMMARY
-  ALTERNATIVE
-  SPIN_OFF
-  OTHER
-  SOURCE
-  COMPILATION
-  CONTAINS
+type StaffConnection {
+  edges: [StaffEdge]
+  nodes: [Staff]
+  """The pagination information"""
+  pageInfo: PageInfo
+}
+
+"""Staff connection edge"""
+type StaffEdge {
+  node: Staff
+  """The id of the connection"""
+  id: Int
+  """The role of the staff member in the production of the media"""
+  role: String
+  """The order the staff should be displayed from the users favourites"""
+  favouriteOrder: Int
+}
+
+"""Studio sort enums"""
+enum StudioSort {
+  ID
+  ID_DESC
+  NAME
+  NAME_DESC
+  SEARCH_MATCH
+  FAVOURITES
+  FAVOURITES_DESC
+}
+
+type StudioConnection {
+  edges: [StudioEdge]
+  nodes: [Studio]
+  """The pagination information"""
+  pageInfo: PageInfo
+}
+
+"""Studio connection edge"""
+type StudioEdge {
+  node: Studio
+  """The id of the connection"""
+  id: Int
+  """If the studio is the main animation studio of the anime"""
+  isMain: Boolean!
+  """The order the character should be displayed from the users favourites"""
+  favouriteOrder: Int
+}
+
+"""Animation or production company"""
+type Studio {
+  """The id of the studio"""
+  id: Int!
+  """The name of the studio"""
+  name: String!
+  """If the studio is an animation studio or a different kind of company"""
+  isAnimationStudio: Boolean!
+  """The media the studio has worked on"""
+  media(
+    """The order the results will be returned in"""
+    sort: [MediaSort]
+    """If the studio was the primary animation studio of the media"""
+    isMain: Boolean
+    onList: Boolean
+    """The page"""
+    page: Int
+    """The amount of entries per page, max 25"""
+    perPage: Int
+  ): MediaConnection
+  """The url for the studio page on the AniList website"""
+  siteUrl: String
+  """
+  If the studio is marked as favourite by the currently authenticated user
+  """
+  isFavourite: Boolean!
+  """The amount of user's who have favourited the studio"""
+  favourites: Int
+}
+
+"""
+Media Airing Schedule. NOTE: We only aim to guarantee that FUTURE airing data is present and accurate.
+"""
+type AiringSchedule {
+  """The id of the airing schedule item"""
+  id: Int!
+  """The time the episode airs at"""
+  airingAt: Int!
+  """Seconds until episode starts airing"""
+  timeUntilAiring: Int!
+  """The airing episode number"""
+  episode: Int!
+  """The associate media id of the airing episode"""
+  mediaId: Int!
+  """The associate media of the airing episode"""
+  media: Media
+}
+
+type AiringScheduleConnection {
+  edges: [AiringScheduleEdge]
+  nodes: [AiringSchedule]
+  """The pagination information"""
+  pageInfo: PageInfo
+}
+
+"""AiringSchedule connection edge"""
+type AiringScheduleEdge {
+  node: AiringSchedule
+  """The id of the connection"""
+  id: Int
+}
+
+"""Media trend sort enums"""
+enum MediaTrendSort {
+  ID
+  ID_DESC
+  MEDIA_ID
+  MEDIA_ID_DESC
+  DATE
+  DATE_DESC
+  SCORE
+  SCORE_DESC
+  POPULARITY
+  POPULARITY_DESC
+  TRENDING
+  TRENDING_DESC
+  EPISODE
+  EPISODE_DESC
+}
+
+type MediaTrendConnection {
+  edges: [MediaTrendEdge]
+  nodes: [MediaTrend]
+  """The pagination information"""
+  pageInfo: PageInfo
+}
+
+"""Media trend connection edge"""
+type MediaTrendEdge {
+  node: MediaTrend
+}
+
+"""Daily media statistics"""
+type MediaTrend {
+  """The id of the tag"""
+  mediaId: Int!
+  """The day the data was recorded (timestamp)"""
+  date: Int!
+  """The amount of media activity on the day"""
+  trending: Int!
+  """A weighted average score of all the user's scores of the media"""
+  averageScore: Int
+  """The number of users with the media on their list"""
+  popularity: Int
+  """The number of users with watching/reading the media"""
+  inProgress: Int
+  """If the media was being released at this time"""
+  releasing: Boolean!
+  """The episode number of the anime released on this day"""
+  episode: Int
+  """The related media"""
+  media: Media
+}
+
+"""An external link to another site related to the media or staff member"""
+type MediaExternalLink {
+  """The id of the external link"""
+  id: Int!
+  """The url of the external link or base url of link source"""
+  url: String
+  """The links website site name"""
+  site: String!
+  """The links website site id"""
+  siteId: Int
+  type: ExternalLinkType
+  """Language the site content is in. See Staff language field for values."""
+  language: String
+  color: String
+  """
+  The icon image url of the site. Not available for all links. Transparent PNG 64x64
+  """
+  icon: String
+  notes: String
+  isDisabled: Boolean
 }
 
 enum ExternalLinkType {
@@ -221,334 +1643,393 @@ enum ExternalLinkType {
   SOCIAL
 }
 
-scalar CountryCode
-
-type Anime {
-  id: Int!
-  id_mal: Int
-  title: AnimeTitle
-  poster: AnimePoster
-  background: String
-  synonyms: [String!]!
-  description: String
-  status: MediaStatus
-  type: MediaType
-  format: MediaFormat
-  updated_at: Int!
-  start_date: AnimeDate
-  end_date: AnimeDate
-  season: MediaSeason
-  season_year: Int
-  episodes_aired: Int
-  episodes_total: Int
-  duration: Int
-  country: CountryCode
-  is_licensed: Boolean
-  source: MediaSource
-  hashtag: String
-  is_adult: Boolean
-  score: Int
-  popularity: Int
-  trending: Int
-  favorites: Int
-  color: String
-  franchise: String
-  more_info: String
-  air_week: Int
-  broadcast: AnimeBroadcast
-  age_rating: AnimeAgeRating
-  genres: [AnimeGenre!]!
-  airing_schedule: [AiringSchedule!]!
-  latest_airing_episode: AiringSchedule
-  next_airing_episode: AiringSchedule
-  last_airing_episode: AiringSchedule
-  characters: [CharacterConnection!]!
-  studios(only_main: Boolean): [StudioConnection!]!
-  tags: [TagConnection!]!
-  score_distribution: [ScoreDistribution!]!
-  status_distribution: [StatusDistribution!]!
-  links(type: String, label: String): [AnimeLink!]!
-  other_titles(source: String, language: String): [OtherTitle!]!
-  other_descriptions(source: String, language: String): [OtherDescription!]!
-  images(source: String, type: String): [AnimeImage!]!
-  videos(source: String, type: String): [AnimeVideo!]!
-  screenshots(source: String, order_greater: Int, order_lesser: Int): [AnimeScreenshot!]!
-  episodes(number_greater: Int, number_lesser: Int, air_date_greater: String, air_date_lesser: String): [Episode!]!
-  artworks(iso_639_1: String, source: String, include_adult: Boolean, type: String): [AnimeArtwork!]!
-  translations(iso_639_1: String, source: String): [AnimeTranslation!]!
-  chronology: [Anime!]!
-  recommendations: [Anime!]!
-  connected: [Anime!]!
-}
-
-type AnimeTitle {
-  romaji: String
-  english: String
-  native: String
-}
-
-type AnimePoster {
-  small: String
-  medium: String
-  large: String
-}
-
-type AnimeDate {
-  day: Int
-  month: Int
-  year: Int
-}
-
-type AnimeBroadcast {
-  week: Int
-  time: String
-  timezone: String
-}
-
-type AnimeAgeRating {
-  rating: String
-  description: String
-}
-
-type AnimeGenre {
-  id: String!
-  name: String!
-}
-
-type AiringSchedule {
-  episode: Int
-  airing_at: Int
-}
-
-type CharacterPage {
-  connections: [CharacterConnection!]!
-  page_info: PageInfo!
-}
-
-type CharacterConnection {
-  role: CharacterRole
-  character: AnimeCharacter!
-  voice_actors: [VoiceActor!]!
-}
-
-type AnimeCharacter {
-  id: Int!
-  age: String
-  blood_type: String
-  gender: String
-  description: String
-  name: CharacterName
-  image: CharacterImage
-  date_of_birth: AnimeDate
-}
-
-type CharacterName {
-  first: String
-  middle: String
-  last: String
-  full: String
-  native: String
-  alternative: [String!]!
-  alternative_spoiler: [String!]!
-}
-
-type CharacterImage {
-  large: String
-  medium: String
-}
-
-type VoiceActor {
-  id: Int!
-  language: String
-  age: Int
-  blood_type: String
-  gender: String
-  description: String
-  home_town: String
-  name: VoiceActorName
-  image: VoiceActorImage
-  date_of_birth: AnimeDate
-  date_of_death: AnimeDate
-}
-
-type VoiceActorName {
-  first: String
-  middle: String
-  last: String
-  full: String
-  native: String
-  alternative: [String!]!
-}
-
-type VoiceActorImage {
-  large: String
-  medium: String
-}
-
-type StudioConnection {
-  is_main: Boolean
-  studio: AnimeStudio!
-}
-
-type AnimeStudio {
-  id: Int!
-  name: String
-}
-
-type TagConnection {
-  rank: Int
-  is_spoiler: Boolean
-  tag: AnimeTag!
-}
-
-type AnimeTag {
-  id: Int!
-  name: String
-  description: String
-  category: String
-  is_adult: Boolean
-}
-
-type AnimeLink {
-  link: String!
-  label: String!
-  type: String!
-}
-
-type ScoreDistribution {
-  score: Int!
-  amount: Int!
-}
-
-type StatusDistribution {
-  status: String!
-  amount: Int!
-}
-
-type OtherTitle {
-  title: String!
-  source: String!
-  language: String!
-}
-
-type OtherDescription {
-  description: String!
-  source: String!
-  language: String!
-}
-
-type AnimeImage {
-  url: String!
-  small: String
-  medium: String
-  large: String
-  type: String!
-  source: String!
-}
-
-type AnimeVideo {
-  url: String!
+"""Data and links to legal streaming episodes on external sites"""
+type MediaStreamingEpisode {
+  """Title of the episode"""
   title: String
+  """Url of episode image thumbnail"""
   thumbnail: String
-  artist: String
-  type: String
-  source: String
-}
-
-type AnimeScreenshot {
-  url: String!
-  order: Int!
-  small: String
-  medium: String
-  large: String
-  source: String!
-}
-
-type AnimeArtwork {
-  url: String!
-  height: Int
-  width: Int
-  large: String
-  medium: String
-  is_adult: Boolean
-  iso_639_1: String
-  type: String!
-  source: String!
-}
-
-type AnimeTranslation {
-  iso_639_1: String
-  title: String
-  description: String
-  tagline: String
-  source: String!
-}
-
-enum VideoType {
-  HLS
-  DASH
-  MP4
-}
-
-type IntroOutro {
-  start: Float
-  end: Float
-}
-
-type Download {
+  """The url of the episode"""
   url: String
-  quality: String
+  """The site location of the streaming episodes"""
+  site: String
 }
 
-type VideoSource {
-  url: String
-  isM3U8: Boolean
-  type: VideoType
-  quality: String
-  isDub: Boolean
+"""
+The ranking of a media in a particular time span and format compared to other media
+"""
+type MediaRank {
+  """The id of the rank"""
+  id: Int!
+  """The numerical rank of the media"""
+  rank: Int!
+  """The type of ranking"""
+  type: MediaRankType!
+  """The format the media is ranked within"""
+  format: MediaFormat!
+  """The year the media is ranked within"""
+  year: Int
+  """The season the media is ranked within"""
+  season: MediaSeason
+  """If the ranking is based on all time instead of a season/year"""
+  allTime: Boolean
+  """String that gives context to the ranking type and time span"""
+  context: String!
 }
 
-type Subtitle {
-  id: String
-  url: String
-  label: String
-  srcLang: String
+"""The type of ranking"""
+enum MediaRankType {
+  """Ranking is based on the media's ratings/score"""
+  RATED
+  """Ranking is based on the media's popularity"""
+  POPULAR
 }
 
-type Header {
-  key: String!
-  value: String
+"""Review sort enums"""
+enum ReviewSort {
+  ID
+  ID_DESC
+  SCORE
+  SCORE_DESC
+  RATING
+  RATING_DESC
+  CREATED_AT @deprecated(reason: "Use ID instead")
+  CREATED_AT_DESC @deprecated(reason: "Use ID_DESC instead")
+  UPDATED_AT
+  UPDATED_AT_DESC
 }
 
-type Source {
-  headers: [Header!]
-  intro: IntroOutro
-  outro: IntroOutro
-  sources: [VideoSource!]!
-  subtitles: [Subtitle!]
-  download: [Download!]
-  chapters: String
-  thumbnails: String
+type ReviewConnection {
+  edges: [ReviewEdge]
+  nodes: [Review]
+  """The pagination information"""
+  pageInfo: PageInfo
 }
 
-type Episode {
-  number: Int!
-  title: String
-  overview: String
-  image: EpisodeImage
-  runtime: Int
-  air_date: String
+"""Review connection edge"""
+type ReviewEdge {
+  node: Review
 }
 
-type EpisodeImage {
-  small: String
-  medium: String
-  large: String
+"""A Review that features in an anime or manga"""
+type Review {
+  """The id of the review"""
+  id: Int!
+  """The id of the review's creator"""
+  userId: Int!
+  """The id of the review's media"""
+  mediaId: Int!
+  """For which type of media the review is for"""
+  mediaType: MediaType
+  """A short summary of the review"""
+  summary: String
+  """The main review body text"""
+  body(
+    """Return the string in pre-parsed html instead of markdown"""
+    asHtml: Boolean
+  ): String
+  """The total user rating of the review"""
+  rating: Int
+  """The amount of user ratings of the review"""
+  ratingAmount: Int
+  """The rating of the review by currently authenticated user"""
+  userRating: ReviewRating
+  """The review score of the media"""
+  score: Int
+  """
+  If the review is not yet publicly published and is only viewable by creator
+  """
+  private: Boolean
+  """The url for the review page on the AniList website"""
+  siteUrl: String
+  """The time of the thread creation"""
+  createdAt: Int!
+  """The time of the thread last update"""
+  updatedAt: Int!
+  """The media the review is of"""
+  media: Media
 }
 
-type EpisodeImages {
-  height: Int
-  width: Int
-  iso_639_1: String
-  image: EpisodeImage
+"""Review rating enums"""
+enum ReviewRating {
+  NO_VOTE
+  UP_VOTE
+  DOWN_VOTE
+}
+
+"""Recommendation sort enums"""
+enum RecommendationSort {
+  ID
+  ID_DESC
+  RATING
+  RATING_DESC
+}
+
+"""A media's statistics"""
+type MediaStats {
+  scoreDistribution: [ScoreDistribution]
+  statusDistribution: [StatusDistribution]
+  airingProgression: [AiringProgression] @deprecated(reason: "Replaced by MediaTrends")
+}
+
+"""A user's list score distribution."""
+type ScoreDistribution {
+  score: Int
+  """The amount of list entries with this score"""
+  amount: Int
+}
+
+"""
+The distribution of the watching/reading status of media or a user's list
+"""
+type StatusDistribution {
+  """The day the activity took place (Unix timestamp)"""
+  status: MediaListStatus
+  """The amount of entries with this status"""
+  amount: Int
+}
+
+"""Score & Watcher stats for airing anime by episode and mid-week"""
+type AiringProgression {
+  """
+  The episode the stats were recorded at. .5 is the mid point between 2 episodes airing dates.
+  """
+  episode: Float
+  """The average score for the media"""
+  score: Float
+  """The amount of users watching the anime"""
+  watching: Int
+}
+
+"""Type of relation media has to its parent."""
+enum MediaRelation {
+  """An adaption of this media into a different format"""
+  ADAPTATION
+  """Released before the relation"""
+  PREQUEL
+  """Released after the relation"""
+  SEQUEL
+  """The media a side story is from"""
+  PARENT
+  """A side story of the parent media"""
+  SIDE_STORY
+  """Shares at least 1 character"""
+  CHARACTER
+  """A shortened and summarized version"""
+  SUMMARY
+  """An alternative version of the same media"""
+  ALTERNATIVE
+  """An alternative version of the media with a different primary focus"""
+  SPIN_OFF
+  """Other"""
+  OTHER
+  """Version 2 only. The source material the media was adapted from"""
+  SOURCE
+  """Version 2 only."""
+  COMPILATION
+  """Version 2 only."""
+  CONTAINS
+  """Version 3 only. The media is set in the same universe as another media"""
+  SAME_UNIVERSE
+}
+
+"""
+8 digit long date integer (YYYYMMDD). Unknown dates represented by 0. E.g. 2016: 20160000, May 1976: 19760500
+"""
+scalar FuzzyDateInt
+
+"""Media list sort enums"""
+enum MediaListSort {
+  MEDIA_ID
+  MEDIA_ID_DESC
+  SCORE
+  SCORE_DESC
+  STATUS
+  STATUS_DESC
+  PROGRESS
+  PROGRESS_DESC
+  PROGRESS_VOLUMES
+  PROGRESS_VOLUMES_DESC
+  REPEAT
+  REPEAT_DESC
+  PRIORITY
+  PRIORITY_DESC
+  STARTED_ON
+  STARTED_ON_DESC
+  FINISHED_ON
+  FINISHED_ON_DESC
+  ADDED_TIME
+  ADDED_TIME_DESC
+  UPDATED_TIME
+  UPDATED_TIME_DESC
+  MEDIA_TITLE_ROMAJI
+  MEDIA_TITLE_ROMAJI_DESC
+  MEDIA_TITLE_ENGLISH
+  MEDIA_TITLE_ENGLISH_DESC
+  MEDIA_TITLE_NATIVE
+  MEDIA_TITLE_NATIVE_DESC
+  MEDIA_POPULARITY
+  MEDIA_POPULARITY_DESC
+}
+
+"""Airing schedule sort enums"""
+enum AiringSort {
+  ID
+  ID_DESC
+  MEDIA_ID
+  MEDIA_ID_DESC
+  TIME
+  TIME_DESC
+  EPISODE
+  EPISODE_DESC
+}
+
+"""Activity type enum."""
+enum ActivityType {
+  """A text activity"""
+  TEXT
+  """A anime list update activity"""
+  ANIME_LIST
+  """A manga list update activity"""
+  MANGA_LIST
+  """A text message activity sent to another user"""
+  MESSAGE
+  """Anime & Manga list update, only used in query arguments"""
+  MEDIA_LIST
+}
+
+"""Activity sort enums"""
+enum ActivitySort {
+  ID
+  ID_DESC
+  PINNED
+}
+
+"""Thread sort enums"""
+enum ThreadSort {
+  ID
+  ID_DESC
+  TITLE
+  TITLE_DESC
+  CREATED_AT @deprecated(reason: "Use ID instead")
+  CREATED_AT_DESC @deprecated(reason: "Use ID_DESC instead")
+  UPDATED_AT
+  UPDATED_AT_DESC
+  REPLIED_AT
+  REPLIED_AT_DESC
+  REPLY_COUNT
+  REPLY_COUNT_DESC
+  VIEW_COUNT
+  VIEW_COUNT_DESC
+  IS_STICKY
+  SEARCH_MATCH
+}
+
+"""Thread comments sort enums"""
+enum ThreadCommentSort {
+  ID
+  ID_DESC
+}
+
+"""Types that can be liked"""
+enum LikeableType {
+  THREAD
+  THREAD_COMMENT
+  ACTIVITY
+  ACTIVITY_REPLY
+}
+
+"""Provides the parsed markdown as html"""
+type ParsedMarkdown {
+  """The parsed markdown as html"""
+  html: String
+}
+
+type SiteStatistics {
+  users(
+    sort: [SiteTrendSort]
+    """The page"""
+    page: Int
+    """The amount of entries per page, max 25"""
+    perPage: Int
+  ): SiteTrendConnection
+  anime(
+    sort: [SiteTrendSort]
+    """The page"""
+    page: Int
+    """The amount of entries per page, max 25"""
+    perPage: Int
+  ): SiteTrendConnection
+  manga(
+    sort: [SiteTrendSort]
+    """The page"""
+    page: Int
+    """The amount of entries per page, max 25"""
+    perPage: Int
+  ): SiteTrendConnection
+  characters(
+    sort: [SiteTrendSort]
+    """The page"""
+    page: Int
+    """The amount of entries per page, max 25"""
+    perPage: Int
+  ): SiteTrendConnection
+  staff(
+    sort: [SiteTrendSort]
+    """The page"""
+    page: Int
+    """The amount of entries per page, max 25"""
+    perPage: Int
+  ): SiteTrendConnection
+  studios(
+    sort: [SiteTrendSort]
+    """The page"""
+    page: Int
+    """The amount of entries per page, max 25"""
+    perPage: Int
+  ): SiteTrendConnection
+  reviews(
+    sort: [SiteTrendSort]
+    """The page"""
+    page: Int
+    """The amount of entries per page, max 25"""
+    perPage: Int
+  ): SiteTrendConnection
+}
+
+"""Site trend sort enums"""
+enum SiteTrendSort {
+  DATE
+  DATE_DESC
+  COUNT
+  COUNT_DESC
+  CHANGE
+  CHANGE_DESC
+}
+
+type SiteTrendConnection {
+  edges: [SiteTrendEdge]
+  nodes: [SiteTrend]
+  """The pagination information"""
+  pageInfo: PageInfo
+}
+
+"""Site trend connection edge"""
+type SiteTrendEdge {
+  node: SiteTrend
+}
+
+"""Daily site statistics"""
+type SiteTrend {
+  """The day the data was recorded (timestamp)"""
+  date: Int!
+  count: Int!
+  """The change from yesterday"""
+  change: Int!
+}
+
+enum ExternalLinkMediaType {
+  ANIME
+  MANGA
+  STAFF
 }

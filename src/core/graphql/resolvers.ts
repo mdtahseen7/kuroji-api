@@ -1,32 +1,34 @@
-import {
-  AnimeArgs,
-  ArtworksArgs,
-  EpisodeArgs,
-  ImageArgs,
-  LinkArgs,
-  OtherDescriptionArgs,
-  OtherTitleArgs,
-  ScreenshotArgs,
-  TranslationsArgs,
-  VideoArgs
-} from './types';
+// Resolvers serving AniList's PUBLIC GraphQL shapes from kuroji's database.
+// Scope: public read surface only. Account-gated types (MediaList, User,
+// Thread, etc.) and all mutations are intentionally absent from the schema.
+// Fields with no kuroji data return null (never throw).
 import {
   db,
   anime,
   animeTitle,
   animeStartDate,
   animeEndDate,
+  animePoster,
   animeGenre,
   animeToGenre,
+  animeAiringSchedule,
+  animeCharacter,
+  animeCharacterName,
+  animeCharacterImage,
+  animeToCharacter,
+  characterToVoiceActor,
+  animeVoiceActor,
+  animeVoiceName,
+  animeVoiceImage,
   animeStudio,
   animeToStudio,
   animeTag,
   animeToTag,
-  animeLatestAiringEpisode,
+  animeScoreDistribution,
+  animeStatusDistribution,
+  animeLink,
+  animeToLink,
   animeNextAiringEpisode,
-  animeLastAiringEpisode,
-  animeAiringSchedule,
-  animeAgeRating
 } from 'src/db';
 import {
   eq,
@@ -44,983 +46,761 @@ import {
   exists,
   notInArray,
   not,
-  notExists
+  count,
+  ilike,
 } from 'drizzle-orm';
 import { Loaders } from './loaders';
 import { GraphQLError } from 'graphql';
+import {
+  MediaArgs,
+  PageArgs,
+  CharacterArgs,
+  StudioArgs,
+  AiringScheduleArgs,
+  PageContext,
+} from './types';
 
-const filterAnime = (
-  args: AnimeArgs
-): {
+// ---------------------------------------------------------------- helpers
+
+const SEASON_INDEX: Record<string, number> = { WINTER: 0, SPRING: 1, SUMMER: 2, FALL: 3 };
+
+function seasonInt(season?: string | null, year?: number | null): number | null {
+  if (!season || !year || !(season in SEASON_INDEX)) return null;
+  return year * 10 + (SEASON_INDEX[season] ?? 0);
+}
+
+/** AniList FuzzyDateInt is YYYYMMDD (e.g. 20240115). Returns {year, month, day}. */
+function parseFuzzyDateInt(v?: number | null): { year?: number; month?: number; day?: number } {
+  if (!v) return {};
+  const s = String(v).padStart(8, '0');
+  return {
+    year: parseInt(s.slice(0, 4), 10) || undefined,
+    month: parseInt(s.slice(4, 6), 10) || undefined,
+    day: parseInt(s.slice(6, 8), 10) || undefined,
+  };
+}
+
+function toPageInfo(total: number, page: number, perPage: number) {
+  const lastPage = Math.max(1, Math.ceil(total / perPage));
+  return {
+    total,
+    perPage,
+    currentPage: page,
+    lastPage,
+    hasNextPage: page < lastPage,
+  };
+}
+
+function emptyConnection() {
+  return {
+    edges: [],
+    nodes: [],
+    pageInfo: toPageInfo(0, 1, 25),
+  };
+}
+
+// ---------------------------------------------------------------- media filter
+// Adapted from the previous kuroji-native filter; args renamed to AniList's
+// camelCase. Only the most-used filters are honoured; the rest are accepted
+// by the schema but ignored (documented in README).
+
+function buildMediaFilter(args: MediaArgs): {
   where: SQL | undefined;
   orderBy: SQL[];
   take: number;
   skip: number;
   page: number;
-} => {
+} {
   const {
-    page = 1,
-    per_page = 20,
     search,
     id,
     id_in,
     id_not,
     id_not_in,
-    id_mal,
-    id_mal_in,
-    id_mal_not,
-    id_mal_not_in,
+    idMal,
+    idMal_in,
+    idMal_not,
+    idMal_not_in,
     season,
-    season_year,
-    season_year_greater,
-    season_year_lesser,
+    seasonYear,
     format,
     format_in,
+    format_not,
     format_not_in,
     status,
     status_in,
+    status_not,
     status_not_in,
     type,
     source,
     source_in,
-    country,
-    is_licensed,
-    is_adult,
-    air_week,
-    air_week_in,
-    air_week_not_in,
-    age_rating,
-    age_rating_in,
-    age_rating_not_in,
-    genres,
-    genres_in,
-    genres_not_in,
-    tags,
-    tags_in,
-    tags_not_in,
-    studios,
-    studios_in,
-    studios_not_in,
-    studio_is_main,
-    score_greater,
-    score_lesser,
-    popularity_greater,
-    popularity_lesser,
+    countryOfOrigin,
+    isLicensed,
+    isAdult,
+    genre,
+    genre_in,
+    genre_not_in,
+    tag,
+    tag_in,
+    tag_not_in,
+    episodes,
     episodes_greater,
     episodes_lesser,
+    duration,
     duration_greater,
     duration_lesser,
-    start_date_greater,
-    start_date_lesser,
-    end_date_greater,
-    end_date_lesser,
-    start_date_like,
-    end_date_like,
-    airing_at_greater,
-    airing_at_lesser,
-    has_next_episode,
-    franchise,
-    sort = ['ID_DESC']
+    averageScore,
+    averageScore_greater,
+    averageScore_lesser,
+    popularity,
+    popularity_greater,
+    popularity_lesser,
+    startDate,
+    endDate,
+    startDate_greater,
+    startDate_lesser,
+    endDate_greater,
+    endDate_lesser,
+    sort = ['ID_DESC'],
   } = args;
 
-  if (per_page > 100) {
-    throw new GraphQLError('per_page exceeds the limit of 100', {
-      extensions: { code: 'BAD_USER_INPUT' }
-    });
-  }
-
-  const skip = (page - 1) * per_page;
   const conditions: SQL[] = [];
+  conditions.push(eq(anime.disabled, false));
 
-  // Search
-  if (search) {
-    conditions.push(
-      and(
-        exists(
-          db
-            .select()
-            .from(animeTitle)
-            .where(
-              and(
-                eq(animeTitle.anime_id, anime.id),
-                sql`${animeTitle.search_vector} @@ plainto_tsquery('english', ${search})`
-              )
-            )
-        )
-      )!
-    );
-  }
-
-  // ID filters
-  if (id) conditions.push(eq(anime.id, id));
+  if (id !== undefined) conditions.push(eq(anime.id, id));
   if (id_in?.length) conditions.push(inArray(anime.id, id_in));
-  if (id_not) conditions.push(not(eq(anime.id, id_not)));
+  if (id_not !== undefined) conditions.push(not(eq(anime.id, id_not)) as SQL);
   if (id_not_in?.length) conditions.push(notInArray(anime.id, id_not_in));
 
-  if (id_mal) conditions.push(eq(anime.id_mal, id_mal));
-  if (id_mal_in?.length) conditions.push(inArray(anime.id_mal, id_mal_in));
-  if (id_mal_not) conditions.push(not(eq(anime.id_mal, id_mal_not)));
-  if (id_mal_not_in?.length) conditions.push(notInArray(anime.id_mal, id_mal_not_in));
+  if (idMal !== undefined) conditions.push(eq(anime.id_mal, idMal));
+  if (idMal_in?.length) conditions.push(inArray(anime.id_mal, idMal_in));
+  if (idMal_not !== undefined) conditions.push(not(eq(anime.id_mal, idMal_not)) as SQL);
+  if (idMal_not_in?.length) conditions.push(notInArray(anime.id_mal, idMal_not_in));
 
-  // Season filters
-  if (season) conditions.push(eq(anime.season, season));
-  if (season_year) conditions.push(eq(anime.season_year, season_year));
-  if (season_year_greater) conditions.push(gte(anime.season_year, season_year_greater));
-  if (season_year_lesser) conditions.push(lte(anime.season_year, season_year_lesser));
+  if (search) {
+    conditions.push(
+      sql`exists(select 1 from ${animeTitle} where ${animeTitle.anime_id} = ${anime.id} and ${animeTitle.search_vector} @@ plainto_tsquery('english', ${search}))`
+    );
+  }
 
-  // Format filters
+  if (type) conditions.push(eq(anime.type, type));
   if (format) conditions.push(eq(anime.format, format));
   if (format_in?.length) conditions.push(inArray(anime.format, format_in));
+  if (format_not) conditions.push(not(eq(anime.format, format_not)) as SQL);
   if (format_not_in?.length) conditions.push(notInArray(anime.format, format_not_in));
 
-  // Status filters
   if (status) conditions.push(eq(anime.status, status));
   if (status_in?.length) conditions.push(inArray(anime.status, status_in));
+  if (status_not) conditions.push(not(eq(anime.status, status_not)) as SQL);
   if (status_not_in?.length) conditions.push(notInArray(anime.status, status_not_in));
 
-  // Air week filters
-  if (air_week) conditions.push(eq(anime.air_week, air_week));
-  if (air_week_in?.length) conditions.push(inArray(anime.air_week, air_week_in));
-  if (air_week_not_in?.length) conditions.push(notInArray(anime.air_week, air_week_not_in));
+  if (season) conditions.push(eq(anime.season, season));
+  if (seasonYear !== undefined) conditions.push(eq(anime.season_year, seasonYear));
 
-  // Age rating filters
-  if (age_rating) {
-    conditions.push(
-      exists(
-        db
-          .select()
-          .from(animeAgeRating)
-          .where(and(eq(animeAgeRating.anime_id, anime.id), eq(animeAgeRating.rating, age_rating)))
-      )
-    );
-  }
-
-  if (age_rating_in?.length) {
-    conditions.push(
-      exists(
-        db
-          .select()
-          .from(animeAgeRating)
-          .where(and(eq(animeAgeRating.anime_id, anime.id), inArray(animeAgeRating.rating, age_rating_in)))
-      )
-    );
-  }
-
-  if (age_rating_not_in?.length) {
-    conditions.push(
-      not(
-        exists(
-          db
-            .select()
-            .from(animeAgeRating)
-            .where(and(eq(animeAgeRating.anime_id, anime.id), inArray(animeAgeRating.rating, age_rating_not_in)))
-        )
-      )
-    );
-  }
-
-  // Type and source filters
-  if (type) conditions.push(eq(anime.type, type));
   if (source) conditions.push(eq(anime.source, source));
   if (source_in?.length) conditions.push(inArray(anime.source, source_in));
-  if (country) conditions.push(eq(anime.country, country));
+  if (countryOfOrigin) conditions.push(eq(anime.country, countryOfOrigin));
+  if (isLicensed !== undefined) conditions.push(eq(anime.is_licensed, isLicensed));
+  if (isAdult !== undefined) conditions.push(eq(anime.is_adult, isAdult));
 
-  // Boolean filters
-  if (is_licensed !== undefined) conditions.push(eq(anime.is_licensed, is_licensed));
-  if (is_adult !== undefined) conditions.push(eq(anime.is_adult, is_adult));
+  if (episodes !== undefined) conditions.push(eq(anime.episodes_total, episodes));
+  if (episodes_greater !== undefined) conditions.push(gt(anime.episodes_total, episodes_greater));
+  if (episodes_lesser !== undefined) conditions.push(lt(anime.episodes_total, episodes_lesser));
+  if (duration !== undefined) conditions.push(eq(anime.duration, duration));
+  if (duration_greater !== undefined) conditions.push(gt(anime.duration, duration_greater));
+  if (duration_lesser !== undefined) conditions.push(lt(anime.duration, duration_lesser));
 
-  // Airing schedule
-  if (has_next_episode !== undefined) {
-    if (has_next_episode) {
-      conditions.push(
-        exists(db.select().from(animeNextAiringEpisode).where(eq(animeNextAiringEpisode.anime_id, anime.id)))
-      );
-    } else {
-      conditions.push(
-        notExists(db.select().from(animeNextAiringEpisode).where(eq(animeNextAiringEpisode.anime_id, anime.id)))
-      );
+  if (averageScore !== undefined) conditions.push(eq(anime.score, averageScore));
+  if (averageScore_greater !== undefined) conditions.push(gt(anime.score, averageScore_greater));
+  if (averageScore_lesser !== undefined) conditions.push(lt(anime.score, averageScore_lesser));
+  if (popularity !== undefined) conditions.push(eq(anime.popularity, popularity));
+  if (popularity_greater !== undefined) conditions.push(gt(anime.popularity, popularity_greater));
+  if (popularity_lesser !== undefined) conditions.push(lt(anime.popularity, popularity_lesser));
+
+  const fuzzy = (table: any, v?: number, op: 'eq' | 'gt' | 'lt' = 'eq') => {
+    if (v === undefined) return;
+    const { year, month, day } = parseFuzzyDateInt(v);
+    if (year !== undefined) {
+      const col = table.year;
+      conditions.push(op === 'eq' ? eq(col, year) : op === 'gt' ? gt(col, year) : lt(col, year));
     }
-  }
+    if (month !== undefined) {
+      const col = table.month;
+      conditions.push(op === 'eq' ? eq(col, month) : op === 'gt' ? gt(col, month) : lt(col, month));
+    }
+    if (day !== undefined) {
+      const col = table.day;
+      conditions.push(op === 'eq' ? eq(col, day) : op === 'gt' ? gt(col, day) : lt(col, day));
+    }
+  };
+  fuzzy(animeStartDate, startDate); fuzzy(animeEndDate, endDate);
+  fuzzy(animeStartDate, startDate_greater, 'gt'); fuzzy(animeStartDate, startDate_lesser, 'lt');
+  fuzzy(animeEndDate, endDate_greater, 'gt'); fuzzy(animeEndDate, endDate_lesser, 'lt');
 
-  if (airing_at_greater !== undefined) {
-    conditions.push(
-      exists(
-        db
-          .select()
-          .from(animeAiringSchedule)
-          .where(
-            and(eq(animeAiringSchedule.anime_id, anime.id), gte(animeAiringSchedule.airing_at, airing_at_greater))
-          )
-      )
-    );
-  }
+  const genreExists = (names: string[], negate = false) => {
+    const q = sql`exists(select 1 from ${animeToGenre} inner join ${animeGenre} on ${animeGenre.id} = ${animeToGenre}.\"B\" where ${animeToGenre}.\"A\" = ${anime.id} and ${animeGenre.name} in (${sql.join(names.map(n => sql`${n}`), sql`, `)}))`;
+    conditions.push((negate ? not(q) : q) as SQL);
+  };
+  if (genre) genreExists([genre]);
+  if (genre_in?.length) genreExists(genre_in);
+  if (genre_not_in?.length) genreExists(genre_not_in, true);
 
-  if (airing_at_lesser !== undefined) {
-    conditions.push(
-      exists(
-        db
-          .select()
-          .from(animeAiringSchedule)
-          .where(
-            and(eq(animeAiringSchedule.anime_id, anime.id), lte(animeAiringSchedule.airing_at, airing_at_lesser))
-          )
-      )
-    );
-  }
+  const tagExists = (names: string[], negate = false) => {
+    const q = sql`exists(select 1 from ${animeToTag} inner join ${animeTag} on ${animeTag.id} = ${animeToTag}.tag_id where ${animeToTag}.anime_id = ${anime.id} and ${animeTag.name} in (${sql.join(names.map(n => sql`${n}`), sql`, `)}))`;
+    conditions.push((negate ? not(q) : q) as SQL);
+  };
+  if (tag) tagExists([tag]);
+  if (tag_in?.length) tagExists(tag_in);
+  if (tag_not_in?.length) tagExists(tag_not_in, true);
 
-  // Genre filters
-  if (genres) {
-    conditions.push(
-      exists(
-        db
-          .select()
-          .from(animeToGenre)
-          .innerJoin(animeGenre, eq(animeGenre.id, animeToGenre.B))
-          .where(and(eq(animeToGenre.A, anime.id), eq(animeGenre.name, genres)))
-      )
-    );
-  }
-
-  if (genres_in?.length) {
-    conditions.push(
-      exists(
-        db
-          .select({ id: animeToGenre.A })
-          .from(animeToGenre)
-          .innerJoin(animeGenre, eq(animeGenre.id, animeToGenre.B))
-          .where(and(eq(animeToGenre.A, anime.id), inArray(animeGenre.name, genres_in)))
-          .groupBy(animeToGenre.A)
-          .having(sql`count(distinct ${animeGenre.name}) = ${genres_in.length}`)
-      )
-    );
-  }
-
-  if (genres_not_in?.length) {
-    conditions.push(
-      not(
-        exists(
-          db
-            .select()
-            .from(animeToGenre)
-            .innerJoin(animeGenre, eq(animeGenre.id, animeToGenre.B))
-            .where(and(eq(animeToGenre.A, anime.id), inArray(animeGenre.name, genres_not_in)))
-        )
-      )
-    );
-  }
-
-  // Tag filters
-  if (tags) {
-    conditions.push(
-      exists(
-        db
-          .select()
-          .from(animeToTag)
-          .innerJoin(animeTag, eq(animeTag.id, animeToTag.tag_id))
-          .where(and(eq(animeToTag.anime_id, anime.id), eq(animeTag.name, tags)))
-      )
-    );
-  }
-
-  if (tags_in?.length) {
-    conditions.push(
-      exists(
-        db
-          .select({ id: animeToTag.id })
-          .from(animeToTag)
-          .innerJoin(animeTag, eq(animeTag.id, animeToTag.tag_id))
-          .where(and(eq(animeToTag.anime_id, anime.id), inArray(animeTag.name, tags_in)))
-          .groupBy(animeToTag.id)
-          .having(sql`count(distinct ${animeTag.name}) = ${tags_in.length}`)
-      )
-    );
-  }
-
-  if (tags_not_in?.length) {
-    conditions.push(
-      not(
-        exists(
-          db
-            .select()
-            .from(animeToTag)
-            .innerJoin(animeTag, eq(animeTag.id, animeToTag.tag_id))
-            .where(and(eq(animeToTag.anime_id, anime.id), inArray(animeTag.name, tags_not_in)))
-        )
-      )
-    );
-  }
-
-  // Studio filters
-  if (studios) {
-    conditions.push(
-      exists(
-        db
-          .select()
-          .from(animeToStudio)
-          .innerJoin(animeStudio, eq(animeStudio.id, animeToStudio.studio_id))
-          .where(
-            and(
-              eq(animeToStudio.anime_id, anime.id),
-              eq(animeStudio.name, studios),
-              studio_is_main !== undefined && studio_is_main !== null
-                ? eq(animeToStudio.is_main, studio_is_main)
-                : undefined
-            )
-          )
-      )
-    );
-  }
-
-  if (studios_in?.length) {
-    conditions.push(
-      exists(
-        db
-          .select({ id: animeToStudio.id })
-          .from(animeToStudio)
-          .innerJoin(animeStudio, eq(animeStudio.id, animeToStudio.studio_id))
-          .where(
-            and(
-              eq(animeToStudio.anime_id, anime.id),
-              inArray(animeStudio.name, studios_in),
-              studio_is_main !== undefined && studio_is_main !== null
-                ? eq(animeToStudio.is_main, studio_is_main)
-                : undefined
-            )
-          )
-          .groupBy(animeToStudio.id)
-          .having(sql`count(distinct ${animeStudio.name}) = ${studios_in.length}`)
-      )
-    );
-  }
-
-  if (studios_not_in?.length) {
-    conditions.push(
-      not(
-        exists(
-          db
-            .select()
-            .from(animeToStudio)
-            .innerJoin(animeStudio, eq(animeStudio.id, animeToStudio.studio_id))
-            .where(
-              and(
-                eq(animeToStudio.anime_id, anime.id),
-                inArray(animeStudio.name, studios_not_in),
-                studio_is_main !== undefined && studio_is_main !== null
-                  ? eq(animeToStudio.is_main, studio_is_main)
-                  : undefined
-              )
-            )
-        )
-      )
-    );
-  }
-
-  // Score filters
-  if (score_greater !== undefined) conditions.push(gte(anime.score, score_greater));
-  if (score_lesser !== undefined) conditions.push(lte(anime.score, score_lesser));
-
-  // Popularity filters
-  if (popularity_greater !== undefined) conditions.push(gte(anime.popularity, popularity_greater));
-  if (popularity_lesser !== undefined) conditions.push(lte(anime.popularity, popularity_lesser));
-
-  // Episode filters
-  if (episodes_greater !== undefined) conditions.push(gte(anime.episodes_total, episodes_greater));
-  if (episodes_lesser !== undefined) conditions.push(lte(anime.episodes_total, episodes_lesser));
-
-  // Duration filters
-  if (duration_greater !== undefined) conditions.push(gte(anime.duration, duration_greater));
-  if (duration_lesser !== undefined) conditions.push(lte(anime.duration, duration_lesser));
-
-  // Date filters
-  if (start_date_greater) {
-    const [year, month, day] = start_date_greater.split('-').map(Number);
-
-    conditions.push(
-      exists(
-        db
-          .select()
-          .from(animeStartDate)
-          .where(
-            and(
-              eq(animeStartDate.anime_id, anime.id),
-              or(
-                gt(animeStartDate.year, year!),
-                and(eq(animeStartDate.year, year!), gt(animeStartDate.month, month!)),
-                and(eq(animeStartDate.year, year!), eq(animeStartDate.month, month!), gt(animeStartDate.day, day!))
-              )
-            )
-          )
-      )
-    );
-  }
-
-  if (start_date_lesser) {
-    const [year, month, day] = start_date_lesser.split('-').map(Number);
-
-    conditions.push(
-      exists(
-        db
-          .select()
-          .from(animeStartDate)
-          .where(
-            and(
-              eq(animeStartDate.anime_id, anime.id),
-              or(
-                lt(animeStartDate.year, year!),
-                and(eq(animeStartDate.year, year!), lt(animeStartDate.month, month!)),
-                and(eq(animeStartDate.year, year!), eq(animeStartDate.month, month!), lt(animeStartDate.day, day!))
-              )
-            )
-          )
-      )
-    );
-  }
-
-  if (start_date_like) {
-    const [year, month, day] = start_date_like.split('-').map(Number);
-
-    conditions.push(
-      exists(
-        db
-          .select()
-          .from(animeStartDate)
-          .where(
-            and(
-              eq(animeStartDate.anime_id, anime.id),
-              eq(animeStartDate.year, year!),
-              eq(animeStartDate.month, month!),
-              eq(animeStartDate.day, day!)
-            )
-          )
-      )
-    );
-  }
-
-  if (end_date_greater) {
-    const [year, month, day] = end_date_greater.split('-').map(Number);
-
-    conditions.push(
-      exists(
-        db
-          .select()
-          .from(animeEndDate)
-          .where(
-            and(
-              eq(animeEndDate.anime_id, anime.id),
-              or(
-                gt(animeEndDate.year, year!),
-                and(eq(animeEndDate.year, year!), gt(animeEndDate.month, month!)),
-                and(eq(animeEndDate.year, year!), eq(animeEndDate.month, month!), gt(animeEndDate.day, day!))
-              )
-            )
-          )
-      )
-    );
-  }
-
-  if (end_date_lesser) {
-    const [year, month, day] = end_date_lesser.split('-').map(Number);
-
-    conditions.push(
-      exists(
-        db
-          .select()
-          .from(animeEndDate)
-          .where(
-            and(
-              eq(animeEndDate.anime_id, anime.id),
-              or(
-                lt(animeEndDate.year, year!),
-                and(eq(animeEndDate.year, year!), lt(animeEndDate.month, month!)),
-                and(eq(animeEndDate.year, year!), eq(animeEndDate.month, month!), lt(animeEndDate.day, day!))
-              )
-            )
-          )
-      )
-    );
-  }
-
-  if (end_date_like) {
-    const [year, month, day] = end_date_like.split('-').map(Number);
-
-    conditions.push(
-      exists(
-        db
-          .select()
-          .from(animeEndDate)
-          .where(
-            and(
-              eq(animeEndDate.anime_id, anime.id),
-              eq(animeEndDate.year, year!),
-              eq(animeEndDate.month, month!),
-              eq(animeEndDate.day, day!)
-            )
-          )
-      )
-    );
-  }
-
-  if (franchise) {
-    conditions.push(eq(anime.franchise, franchise));
-  }
-
+  // -- sorting --
   const orderBy: SQL[] = [];
-
-  sort.forEach((s) => {
+  const titleSort = (dir: 'asc' | 'desc') =>
+    sql`(select ${dir === 'asc' ? 'min' : 'max'}(coalesce(${animeTitle.romaji}, ${animeTitle.english}, '')) from ${animeTitle} where ${animeTitle.anime_id} = ${anime.id}) ${dir === 'asc' ? sql`asc` : sql`desc`}`;
+  for (const s of sort) {
     switch (s) {
-      case 'ID_DESC':
-        orderBy.push(desc(anime.id));
-        break;
-      case 'ID_ASC':
-        orderBy.push(asc(anime.id));
-        break;
-      case 'TITLE_ROMAJI':
-        orderBy.push(asc(animeTitle.romaji));
-        break;
-      case 'TITLE_ROMAJI_DESC':
-        orderBy.push(desc(animeTitle.romaji));
-        break;
-      case 'TITLE_ENGLISH':
-        orderBy.push(asc(animeTitle.english));
-        break;
-      case 'TITLE_ENGLISH_DESC':
-        orderBy.push(desc(animeTitle.english));
-        break;
-      case 'TITLE_NATIVE':
-        orderBy.push(asc(animeTitle.native));
-        break;
-      case 'TITLE_NATIVE_DESC':
-        orderBy.push(desc(animeTitle.native));
-        break;
-      case 'SCORE_DESC':
-        orderBy.push(sql`${anime.score} DESC NULLS LAST`);
-        break;
-      case 'SCORE_ASC':
-        orderBy.push(sql`${anime.score} ASC NULLS LAST`);
-        break;
-      case 'POPULARITY_DESC':
-        orderBy.push(sql`${anime.popularity} DESC NULLS LAST`);
-        break;
-      case 'POPULARITY_ASC':
-        orderBy.push(sql`${anime.popularity} ASC NULLS LAST`);
-        break;
-      case 'TRENDING_DESC':
-        orderBy.push(sql`${anime.trending} DESC NULLS LAST`);
-        break;
-      case 'TRENDING_ASC':
-        orderBy.push(sql`${anime.trending} ASC NULLS LAST`);
-        break;
-      case 'FAVORITES_DESC':
-        orderBy.push(sql`${anime.favorites} DESC NULLS LAST`);
-        break;
-      case 'FAVORITES_ASC':
-        orderBy.push(sql`${anime.favorites} ASC NULLS LAST`);
-        break;
-      case 'START_DATE_DESC':
-        orderBy.push(sql`${animeStartDate.year} DESC NULLS LAST`);
-        orderBy.push(sql`${animeStartDate.month} DESC NULLS LAST`);
-        orderBy.push(sql`${animeStartDate.day} DESC NULLS LAST`);
-        break;
+      case 'ID': case 'ID_DESC': orderBy.push(desc(anime.id)); break;
+      case 'ID_ASC': orderBy.push(asc(anime.id)); break;
+      case 'TITLE_ROMAJI': orderBy.push(titleSort('asc')); break;
+      case 'TITLE_ROMAJI_DESC': orderBy.push(titleSort('desc')); break;
+      case 'TITLE_ENGLISH': case 'TITLE_ENGLISH_DESC':
+      case 'TITLE_NATIVE': case 'TITLE_NATIVE_DESC':
+        orderBy.push(s.endsWith('_DESC') || s === 'TITLE_ENGLISH_DESC' || s === 'TITLE_NATIVE_DESC' ? titleSort('desc') : titleSort('asc')); break;
+      case 'SCORE': case 'SCORE_DESC': orderBy.push(desc(anime.score)); break;
+      case 'SCORE_ASC': orderBy.push(asc(anime.score)); break;
+      case 'POPULARITY': case 'POPULARITY_DESC': orderBy.push(desc(anime.popularity)); break;
+      case 'POPULARITY_ASC': orderBy.push(asc(anime.popularity)); break;
+      case 'TRENDING': case 'TRENDING_DESC': orderBy.push(desc(anime.trending)); break;
+      case 'TRENDING_ASC': orderBy.push(asc(anime.trending)); break;
+      case 'FAVOURITES': case 'FAVOURITES_DESC': orderBy.push(desc(anime.favorites)); break;
+      case 'FAVOURITES_ASC': orderBy.push(asc(anime.favorites)); break;
+      case 'UPDATED_AT': case 'UPDATED_AT_DESC': orderBy.push(desc(anime.updated_at)); break;
+      case 'UPDATED_AT_ASC': orderBy.push(asc(anime.updated_at)); break;
+      case 'START_DATE': case 'START_DATE_DESC':
+        orderBy.push(sql`(select ${animeStartDate.year} * 10000 + ${animeStartDate.month} * 100 + ${animeStartDate.day} from ${animeStartDate} where ${animeStartDate.anime_id} = ${anime.id}) desc`); break;
       case 'START_DATE_ASC':
-        orderBy.push(sql`${animeStartDate.year} ASC NULLS LAST`);
-        orderBy.push(sql`${animeStartDate.month} ASC NULLS LAST`);
-        orderBy.push(sql`${animeStartDate.day} ASC NULLS LAST`);
-        break;
-      case 'END_DATE_DESC':
-        orderBy.push(sql`${animeEndDate.year} DESC NULLS LAST`);
-        orderBy.push(sql`${animeEndDate.month} DESC NULLS LAST`);
-        orderBy.push(sql`${animeEndDate.day} DESC NULLS LAST`);
-        break;
-      case 'END_DATE_ASC':
-        orderBy.push(sql`${animeEndDate.year} ASC NULLS LAST`);
-        orderBy.push(sql`${animeEndDate.month} ASC NULLS LAST`);
-        orderBy.push(sql`${animeEndDate.day} ASC NULLS LAST`);
-        break;
-      case 'UPDATED_AT_DESC':
-        orderBy.push(desc(anime.updated_at));
-        break;
-      case 'UPDATED_AT_ASC':
-        orderBy.push(asc(anime.updated_at));
-        break;
-      case 'AIR_WEEK_DESC':
-        orderBy.push(sql`${anime.air_week} DESC NULLS LAST`);
-        break;
-      case 'AIR_WEEK_ASC':
-        orderBy.push(sql`${anime.air_week} ASC NULLS LAST`);
-        break;
-      case 'EPISODES_DESC':
-        orderBy.push(sql`${anime.episodes_total} DESC NULLS LAST`);
-        break;
-      case 'EPISODES_ASC':
-        orderBy.push(sql`${anime.episodes_total} ASC NULLS LAST`);
-        break;
-      case 'DURATION_DESC':
-        orderBy.push(sql`${anime.duration} DESC NULLS LAST`);
-        break;
-      case 'DURATION_ASC':
-        orderBy.push(sql`${anime.duration} ASC NULLS LAST`);
-        break;
-      case 'LATEST_EPISODE_DESC':
-        orderBy.push(sql`${animeLatestAiringEpisode.airing_at} DESC NULLS LAST`);
-        break;
-      case 'LATEST_EPISODE_ASC':
-        orderBy.push(sql`${animeLatestAiringEpisode.airing_at} ASC NULLS LAST`);
-        break;
-      case 'NEXT_EPISODE_DESC':
-        orderBy.push(sql`${animeNextAiringEpisode.airing_at} DESC NULLS LAST`);
-        break;
-      case 'NEXT_EPISODE_ASC':
-        orderBy.push(sql`${animeNextAiringEpisode.airing_at} ASC NULLS LAST`);
-        break;
-      case 'LAST_EPISODE_DESC':
-        orderBy.push(sql`${animeLastAiringEpisode.airing_at} DESC NULLS LAST`);
-        break;
-      case 'LAST_EPISODE_ASC':
-        orderBy.push(sql`${animeLastAiringEpisode.airing_at} ASC NULLS LAST`);
-        break;
-      case 'SEASON_YEAR_DESC':
-        orderBy.push(sql`${anime.season_year} DESC NULLS LAST`);
-        break;
-      case 'SEASON_YEAR_ASC':
-        orderBy.push(sql`${anime.season_year} ASC NULLS LAST`);
-        break;
-      case 'FORMAT_ASC':
-        orderBy.push(sql`${anime.format} ASC NULLS LAST`);
-        break;
-      case 'FORMAT_DESC':
-        orderBy.push(sql`${anime.format} DESC NULLS LAST`);
-        break;
-      case 'TYPE_ASC':
-        orderBy.push(sql`${anime.type} ASC NULLS LAST`);
-        break;
-      case 'TYPE_DESC':
-        orderBy.push(sql`${anime.type} DESC NULLS LAST`);
-        break;
-      case 'STATUS_ASC':
-        orderBy.push(sql`${anime.status} ASC NULLS LAST`);
-        break;
-      case 'STATUS_DESC':
-        orderBy.push(sql`${anime.status} DESC NULLS LAST`);
-        break;
+        orderBy.push(sql`(select ${animeStartDate.year} * 10000 + ${animeStartDate.month} * 100 + ${animeStartDate.day} from ${animeStartDate} where ${animeStartDate.anime_id} = ${anime.id}) asc`); break;
+      case 'EPISODES': case 'EPISODES_DESC': orderBy.push(desc(anime.episodes_total)); break;
+      case 'EPISODES_ASC': orderBy.push(asc(anime.episodes_total)); break;
+      case 'DURATION': case 'DURATION_DESC': orderBy.push(desc(anime.duration)); break;
+      case 'DURATION_ASC': orderBy.push(asc(anime.duration)); break;
+      default: break;
     }
-  });
+  }
+  if (!orderBy.length) orderBy.push(desc(anime.id));
 
-  return {
-    where: conditions.length ? and(...conditions) : undefined,
-    orderBy,
-    take: per_page,
-    skip,
-    page
-  };
+  return { where: conditions.length ? and(...conditions) : undefined, orderBy, take: 0, skip: 0, page: 1 };
+}
+
+async function queryMedia(args: MediaArgs, page: number, perPage: number) {
+  if (perPage > 50) {
+    throw new GraphQLError('perPage exceeds the limit of 50', {
+      extensions: { code: 'BAD_USER_INPUT' },
+    });
+  }
+  const { where, orderBy } = buildMediaFilter(args);
+  const skip = (page - 1) * perPage;
+
+  const [rows, totalRes] = await Promise.all([
+    db.select().from(anime).where(where).orderBy(...orderBy).limit(perPage).offset(skip),
+    db.select({ c: count() }).from(anime).where(where),
+  ]);
+  const total = totalRes[0]?.c ?? 0;
+  return { rows, pageInfo: toPageInfo(total, page, perPage) };
+}
+
+// ---------------------------------------------------------------- Query
+
+async function resolveSingleMedia(args: MediaArgs) {
+  const { rows } = await queryMedia(args, 1, 1);
+  return rows[0] ?? null;
+}
+
+export const Query = {
+  Page: (_: unknown, args: PageArgs): PageContext => ({
+    page: args.page ?? 1,
+    perPage: Math.min(args.perPage ?? 25, 50),
+  }),
+
+  Media: (_: unknown, args: MediaArgs) => resolveSingleMedia(args),
+
+  MediaTrend: () => null,
+
+  AiringSchedule: async (_: unknown, args: AiringScheduleArgs) => {
+    const conditions: SQL[] = [];
+    if (args.id !== undefined) {
+      // ids are synthetic hashes; look up directly is unreliable -> scan by episode/media
+      return null;
+    }
+    if (args.mediaId !== undefined) conditions.push(eq(animeAiringSchedule.anime_id, args.mediaId));
+    if (args.episode !== undefined) conditions.push(eq(animeAiringSchedule.episode, args.episode));
+    if (args.airingAt !== undefined) conditions.push(eq(animeAiringSchedule.airing_at, args.airingAt));
+    if (args.airingAt_greater !== undefined)
+      conditions.push(gt(animeAiringSchedule.airing_at, args.airingAt_greater));
+    if (args.airingAt_lesser !== undefined)
+      conditions.push(lt(animeAiringSchedule.airing_at, args.airingAt_lesser));
+    if (!conditions.length) return null;
+    const rows = await db
+      .select()
+      .from(animeAiringSchedule)
+      .where(and(...conditions))
+      .limit(1);
+    return rows[0] ?? null;
+  },
+
+  Character: async (_: unknown, args: CharacterArgs) => {
+    if (args.id !== undefined) {
+      const rows = await db.select().from(animeCharacter).where(eq(animeCharacter.id, args.id)).limit(1);
+      return rows[0] ?? null;
+    }
+    if (args.search) {
+      const rows = await db
+        .select({ c: animeCharacter })
+        .from(animeCharacter)
+        .innerJoin(animeCharacterName, eq(animeCharacterName.character_id, animeCharacter.id))
+        .where(
+          or(
+            ilike(animeCharacterName.full, `%${args.search}%`),
+            ilike(animeCharacterName.native, `%${args.search}%`)
+          )
+        )
+        .limit(1);
+      return rows[0]?.c ?? null;
+    }
+    return null;
+  },
+
+  Staff: () => null,
+
+  Studio: async (_: unknown, args: StudioArgs) => {
+    if (args.id !== undefined) {
+      const rows = await db.select().from(animeStudio).where(eq(animeStudio.id, args.id)).limit(1);
+      return rows[0] ?? null;
+    }
+    if (args.search) {
+      const rows = await db
+        .select()
+        .from(animeStudio)
+        .where(ilike(animeStudio.name, `%${args.search}%`))
+        .limit(1);
+      return rows[0] ?? null;
+    }
+    return null;
+  },
+
+  Review: () => null,
+
+  GenreCollection: async () => {
+    const rows = await db.select({ name: animeGenre.name }).from(animeGenre).orderBy(asc(animeGenre.name));
+    return rows.map((r) => r.name);
+  },
+
+  MediaTagCollection: async () => {
+    const rows = await db.select().from(animeTag).orderBy(asc(animeTag.name));
+    return rows.map((t) => ({
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      category: t.category,
+      rank: null,
+      isGeneralSpoiler: null,
+      isMediaSpoiler: null,
+      isAdult: t.is_adult,
+      userId: null,
+    }));
+  },
+
+  ExternalLinkSourceCollection: async () => {
+    const rows = await db.selectDistinct({ label: animeLink.label }).from(animeLink);
+    return rows.map((r) => r.label).filter(Boolean);
+  },
+
+  Markdown: (_: unknown, args: { markdown?: string }) => {
+    const md = args.markdown ?? '';
+    // minimal markdown -> html (paragraphs + line breaks); not a full renderer
+    const html = md
+      .split(/\n{2,}/)
+      .map((p) => `<p>${p.replace(/\n/g, '<br>')}</p>`)
+      .join('');
+    return { html };
+  },
+
+  SiteStatistics: async () => ({
+    users: emptyConnection(),
+    anime: emptyConnection(),
+    manga: emptyConnection(),
+    characters: emptyConnection(),
+    staff: emptyConnection(),
+    studios: emptyConnection(),
+    reviews: emptyConnection(),
+  }),
 };
 
-const getAnimePage = async (args: AnimeArgs) => {
-  const { where, orderBy, skip, take, page } = filterAnime(args);
+// ---------------------------------------------------------------- Page
 
-  const query = db
-    .select({ anime: anime, total: sql<number>`count(*) OVER()` })
-    .from(anime)
-    .leftJoin(animeTitle, eq(animeTitle.anime_id, anime.id))
-    .leftJoin(animeStartDate, eq(animeStartDate.anime_id, anime.id))
-    .leftJoin(animeEndDate, eq(animeEndDate.anime_id, anime.id))
-    .leftJoin(animeLatestAiringEpisode, eq(animeLatestAiringEpisode.anime_id, anime.id))
-    .leftJoin(animeNextAiringEpisode, eq(animeNextAiringEpisode.anime_id, anime.id))
-    .leftJoin(animeLastAiringEpisode, eq(animeLastAiringEpisode.anime_id, anime.id))
-    .$dynamic();
+export const Page = {
+  pageInfo: (parent: PageContext) => toPageInfo(0, parent.page, parent.perPage),
 
-  if (where) query.where(where);
-  if (orderBy.length) query.orderBy(...orderBy);
+  media: async (parent: PageContext, args: MediaArgs) => {
+    const { rows } = await queryMedia(args, parent.page, parent.perPage);
+    return rows;
+  },
 
-  const data = await query.limit(take).offset(skip);
-
-  const total = data[0]?.total || 0;
-  const last_page = Math.ceil(total / take);
-
-  return {
-    data: data.map((d) => d.anime),
-    page_info: {
-      total,
-      per_page: take,
-      current_page: page,
-      last_page,
-      has_next_page: page < last_page
+  characters: async (parent: PageContext, args: CharacterArgs) => {
+    const perPage = parent.perPage;
+    const skip = (parent.page - 1) * perPage;
+    const conditions: SQL[] = [];
+    if (args.id !== undefined) conditions.push(eq(animeCharacter.id, args.id));
+    if (args.id_in?.length) conditions.push(inArray(animeCharacter.id, args.id_in));
+    if (args.search) {
+      conditions.push(
+        sql`exists(select 1 from ${animeCharacterName} where ${animeCharacterName}.character_id = ${animeCharacter.id} and (${animeCharacterName}.full ilike ${'%' + args.search + '%'} or ${animeCharacterName}.native ilike ${'%' + args.search + '%'}))`
+      );
     }
-  };
+    const where = conditions.length ? and(...conditions) : undefined;
+    const rows = await db.select().from(animeCharacter).where(where).orderBy(asc(animeCharacter.id)).limit(perPage).offset(skip);
+    return rows;
+  },
+
+  staff: () => [],
+
+  studios: async (parent: PageContext, args: StudioArgs) => {
+    const perPage = parent.perPage;
+    const skip = (parent.page - 1) * perPage;
+    const conditions: SQL[] = [];
+    if (args.id !== undefined) conditions.push(eq(animeStudio.id, args.id));
+    if (args.id_in?.length) conditions.push(inArray(animeStudio.id, args.id_in));
+    if (args.search) conditions.push(ilike(animeStudio.name, `%${args.search}%`));
+    const where = conditions.length ? and(...conditions) : undefined;
+    const rows = await db.select().from(animeStudio).where(where).orderBy(asc(animeStudio.name)).limit(perPage).offset(skip);
+    return rows;
+  },
+
+  airingSchedules: async (parent: PageContext, args: AiringScheduleArgs) => {
+    const perPage = parent.perPage;
+    const skip = (parent.page - 1) * perPage;
+    const conditions: SQL[] = [];
+    if (args.mediaId !== undefined) conditions.push(eq(animeAiringSchedule.anime_id, args.mediaId));
+    if (args.episode !== undefined) conditions.push(eq(animeAiringSchedule.episode, args.episode));
+    if (args.airingAt_greater !== undefined)
+      conditions.push(gt(animeAiringSchedule.airing_at, args.airingAt_greater));
+    if (args.airingAt_lesser !== undefined)
+      conditions.push(lt(animeAiringSchedule.airing_at, args.airingAt_lesser));
+    const where = conditions.length ? and(...conditions) : undefined;
+    const rows = await db.select().from(animeAiringSchedule).where(where).orderBy(asc(animeAiringSchedule.airing_at)).limit(perPage).offset(skip);
+    return rows.map((r) => toAiringSchedule(r, r.anime_id));
+  },
+
+  mediaTrends: () => [],
+  reviews: () => [],
 };
+
+// ---------------------------------------------------------------- Media
+
+type AnimeRow = typeof anime.$inferSelect;
+
+async function toCharacterConnection(
+  animeId: number,
+  ctx: { loaders: Loaders }
+) {
+  const conns = await ctx.loaders.characterConnections.load(animeId);
+  const edges = await Promise.all(
+    conns.map(async (conn) => {
+      const [character, vas] = await Promise.all([
+        ctx.loaders.character.load(conn.character_id),
+        ctx.loaders.voiceActors.load(conn.id),
+      ]);
+      if (!character) return null;
+      const voiceActors = await Promise.all(
+        vas.map(async (va) => {
+          const name = await ctx.loaders.voiceName.load(va.id);
+          const image = await ctx.loaders.voiceImage.load(va.id);
+          return { ...va, name, image };
+        })
+      );
+      const name = await ctx.loaders.characterName.load(character.id);
+      const image = await ctx.loaders.characterImage.load(character.id);
+      return {
+        node: { ...character, name, image },
+        role: conn.role ?? null,
+        voiceActors,
+      };
+    })
+  );
+  const valid = edges.filter(Boolean);
+  return {
+    edges: valid,
+    nodes: valid.map((e: any) => e.node),
+    pageInfo: toPageInfo(valid.length, 1, Math.max(valid.length, 1)),
+  };
+}
+
+async function toStudioConnection(animeId: number, ctx: { loaders: Loaders }) {
+  const conns = await ctx.loaders.studioConnections.load(animeId);
+  const edges = await Promise.all(
+    conns.map(async (conn) => {
+      const studio = await ctx.loaders.studio.load(conn.studio_id);
+      if (!studio) return null;
+      return { node: studio, isMain: conn.is_main ?? null };
+    })
+  );
+  const valid = edges.filter(Boolean);
+  return {
+    edges: valid,
+    nodes: valid.map((e: any) => e.node),
+    pageInfo: toPageInfo(valid.length, 1, Math.max(valid.length, 1)),
+  };
+}
+
+function hashId(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+export const Media = {
+  id: (p: AnimeRow) => p.id,
+  idMal: (p: AnimeRow) => p.id_mal ?? null,
+  title: async (p: AnimeRow, _: unknown, ctx: { loaders: Loaders }) => {
+    const t = await ctx.loaders.title.load(p.id);
+    if (!t) return null;
+    return { romaji: t.romaji ?? null, english: t.english ?? null, native: t.native ?? null, userPreferred: null };
+  },
+  type: (p: AnimeRow) => p.type ?? null,
+  format: (p: AnimeRow) => p.format ?? null,
+  status: (p: AnimeRow) => p.status ?? null,
+  description: (p: AnimeRow) => p.description ?? null,
+  startDate: async (p: AnimeRow, _: unknown, ctx: { loaders: Loaders }) => {
+    const d = await ctx.loaders.startDate.load(p.id);
+    if (!d) return null;
+    return { year: d.year ?? null, month: d.month ?? null, day: d.day ?? null };
+  },
+  endDate: async (p: AnimeRow, _: unknown, ctx: { loaders: Loaders }) => {
+    const d = await ctx.loaders.endDate.load(p.id);
+    if (!d) return null;
+    return { year: d.year ?? null, month: d.month ?? null, day: d.day ?? null };
+  },
+  season: (p: AnimeRow) => p.season ?? null,
+  seasonYear: (p: AnimeRow) => p.season_year ?? null,
+  seasonInt: (p: AnimeRow) => seasonInt(p.season, p.season_year),
+  episodes: (p: AnimeRow) => p.episodes_total ?? null,
+  duration: (p: AnimeRow) => p.duration ?? null,
+  chapters: () => null,
+  volumes: () => null,
+  countryOfOrigin: (p: AnimeRow) => p.country ?? null,
+  isLicensed: (p: AnimeRow) => p.is_licensed ?? false,
+  source: (p: AnimeRow) => p.source ?? null,
+  hashtag: (p: AnimeRow) => p.hashtag ?? null,
+  trailer: () => null,
+  updatedAt: (p: AnimeRow) => p.updated_at ?? null,
+  coverImage: async (p: AnimeRow, _: unknown, ctx: { loaders: Loaders }) => {
+    const poster = await ctx.loaders.poster.load(p.id);
+    return {
+      extraLarge: poster?.large ?? null,
+      large: poster?.large ?? null,
+      medium: poster?.medium ?? null,
+      color: p.color ?? null,
+    };
+  },
+  bannerImage: () => null,
+  genres: async (p: AnimeRow, _: unknown, ctx: { loaders: Loaders }) => {
+    const gs = await ctx.loaders.genres.load(p.id);
+    return gs.map((g) => g.name);
+  },
+  synonyms: () => [],
+  averageScore: (p: AnimeRow) => p.score ?? null,
+  meanScore: (p: AnimeRow) => p.score ?? null,
+  popularity: (p: AnimeRow) => p.popularity ?? null,
+  isLocked: () => false,
+  trending: (p: AnimeRow) => p.trending ?? null,
+  favourites: (p: AnimeRow) => p.favorites ?? null,
+  isFavourite: () => false,
+  isFavouriteBlocked: () => false,
+  isAdult: (p: AnimeRow) => p.is_adult ?? false,
+  tags: async (p: AnimeRow, _: unknown, ctx: { loaders: Loaders }) => {
+    const conns = await ctx.loaders.tagConnections.load(p.id);
+    const tags = await Promise.all(conns.map((c) => ctx.loaders.tag.load(c.tag_id)));
+    return conns
+      .map((conn, i) => {
+        const t = tags[i];
+        if (!t) return null;
+        return {
+          id: t.id,
+          name: t.name,
+          description: t.description,
+          category: t.category,
+          rank: conn.rank ?? null,
+          isGeneralSpoiler: null,
+          isMediaSpoiler: conn.is_spoiler ?? null,
+          isAdult: t.is_adult ?? null,
+          userId: null,
+        };
+      })
+      .filter(Boolean);
+  },
+  relations: () => emptyConnection(),
+  characters: (p: AnimeRow, _: unknown, ctx: { loaders: Loaders }) => toCharacterConnection(p.id, ctx),
+  staff: () => [],
+  studios: (p: AnimeRow, _: unknown, ctx: { loaders: Loaders }) => toStudioConnection(p.id, ctx),
+  isRecommendationBlocked: () => false,
+  isReviewBlocked: () => false,
+  nextAiringEpisode: async (p: AnimeRow, _: unknown, ctx: { loaders: Loaders }) => {
+    const s = await ctx.loaders.nextAiringEpisode.load(p.id);
+    if (!s) return null;
+    return toAiringSchedule(s, p.id);
+  },
+  airingSchedule: async (p: AnimeRow, _: unknown, ctx: { loaders: Loaders }) => {
+    const rows = await ctx.loaders.airingSchedule.load(p.id);
+    const nodes = rows.map((r) => toAiringSchedule(r, p.id));
+    return { edges: nodes.map((n) => ({ node: n })), nodes, pageInfo: toPageInfo(nodes.length, 1, Math.max(nodes.length, 1)) };
+  },
+  trends: () => emptyConnection(),
+  externalLinks: async (p: AnimeRow, _: unknown, ctx: { loaders: Loaders }) => {
+    const links = await ctx.loaders.links.load(p.id);
+    return links.map((l, i) => ({
+      id: hashId(l.id || `${p.id}-${i}`),
+      url: l.link,
+      site: l.label ?? null,
+      siteId: null,
+      type: ['INFO', 'STREAMING', 'SOCIAL'].includes((l.type || '').toUpperCase())
+        ? (l.type as string).toUpperCase()
+        : null,
+      language: null,
+      color: null,
+      icon: null,
+      notes: null,
+      isDisabled: null,
+    }));
+  },
+  streamingEpisodes: () => [],
+  rankings: () => [],
+  reviews: () => emptyConnection(),
+  stats: async (p: AnimeRow, _: unknown, ctx: { loaders: Loaders }) => {
+    const [score, status] = await Promise.all([
+      ctx.loaders.scoreDistribution.load(p.id),
+      ctx.loaders.statusDistribution.load(p.id),
+    ]);
+    return {
+      scoreDistribution: score.map((s) => ({ score: s.score, amount: s.amount })),
+      statusDistribution: status.map((s) => ({ status: s.status, amount: s.amount })),
+      airingProgression: null,
+    };
+  },
+  siteUrl: (p: AnimeRow) => `https://anilist.co/anime/${p.id}`,
+  autoCreateForumThread: () => null,
+  modNotes: () => null,
+};
+
+function toAiringSchedule(row: typeof animeAiringSchedule.$inferSelect, mediaId: number) {
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    id: hashId(row.id || `${mediaId}-${row.episode}`),
+    airingAt: row.airing_at ?? null,
+    timeUntilAiring: row.airing_at ? Math.max(0, row.airing_at - now) : null,
+    episode: row.episode ?? null,
+    mediaId,
+    _mediaId: mediaId,
+  };
+}
+
+// ---------------------------------------------------------------- Character
+
+type CharacterRow = typeof animeCharacter.$inferSelect;
+
+export const Character = {
+  id: (p: CharacterRow) => p.id,
+  name: async (p: CharacterRow, _: unknown, ctx: { loaders: Loaders }) => {
+    const n = await ctx.loaders.characterName.load(p.id);
+    if (!n) return null;
+    return {
+      first: n.first ?? null,
+      middle: n.middle ?? null,
+      last: n.last ?? null,
+      full: n.full ?? null,
+      native: n.native ?? null,
+      alternative: n.alternative ?? [],
+      alternativeSpoiler: n.alternative_spoiler ?? [],
+      userPreferred: null,
+    };
+  },
+  image: async (p: CharacterRow, _: unknown, ctx: { loaders: Loaders }) => {
+    const i = await ctx.loaders.characterImage.load(p.id);
+    if (!i) return null;
+    return { large: i.large ?? null, medium: i.medium ?? null };
+  },
+  description: (p: CharacterRow) => p.description ?? null,
+  gender: (p: CharacterRow) => p.gender ?? null,
+  dateOfBirth: async (p: CharacterRow, _: unknown, ctx: { loaders: Loaders }) => {
+    const d = await ctx.loaders.characterBirthDate.load(p.id);
+    if (!d) return null;
+    return { year: d.year ?? null, month: d.month ?? null, day: d.day ?? null };
+  },
+  age: (p: CharacterRow) => p.age ?? null,
+  bloodType: (p: CharacterRow) => p.blood_type ?? null,
+  isFavourite: () => false,
+  isFavouriteBlocked: () => false,
+  siteUrl: (p: CharacterRow) => `https://anilist.co/character/${p.id}`,
+  media: async (p: CharacterRow) => {
+    // reverse lookup: media this character appears in
+    const rows = await db
+      .select({ m: anime })
+      .from(animeToCharacter)
+      .innerJoin(anime, eq(anime.id, animeToCharacter.anime_id))
+      .where(eq(animeToCharacter.character_id, p.id))
+      .limit(25);
+    const nodes = rows.map((r) => r.m);
+    return { edges: nodes.map((n) => ({ node: n })), nodes, pageInfo: toPageInfo(nodes.length, 1, Math.max(nodes.length, 1)) };
+  },
+  updatedAt: () => null,
+  favourites: () => null,
+  modNotes: () => null,
+};
+
+// ---------------------------------------------------------------- Studio
+
+type StudioRow = typeof animeStudio.$inferSelect;
+
+export const Studio = {
+  id: (p: StudioRow) => p.id,
+  name: (p: StudioRow) => p.name ?? null,
+  isAnimationStudio: () => null,
+  siteUrl: (p: StudioRow) => `https://anilist.co/studio/${p.id}`,
+  isFavourite: () => false,
+  favourites: () => null,
+  media: async (p: StudioRow) => {
+    const rows = await db
+      .select({ m: anime })
+      .from(animeToStudio)
+      .innerJoin(anime, eq(anime.id, animeToStudio.anime_id))
+      .where(eq(animeToStudio.studio_id, p.id))
+      .orderBy(desc(anime.popularity))
+      .limit(25);
+    const nodes = rows.map((r) => r.m);
+    return { edges: nodes.map((n) => ({ node: n })), nodes, pageInfo: toPageInfo(nodes.length, 1, Math.max(nodes.length, 1)) };
+  },
+};
+
+// ---------------------------------------------------------------- AiringSchedule
+
+export const AiringSchedule = {
+  id: (p: { id: number }) => p.id,
+  airingAt: (p: { airingAt: number | null }) => p.airingAt,
+  timeUntilAiring: (p: { timeUntilAiring: number | null }) => p.timeUntilAiring,
+  episode: (p: { episode: number | null }) => p.episode,
+  mediaId: (p: { mediaId: number }) => p.mediaId,
+  media: async (p: { _mediaId: number }) => {
+    const rows = await db.select().from(anime).where(eq(anime.id, p._mediaId)).limit(1);
+    return rows[0] ?? null;
+  },
+};
+
+// ---------------------------------------------------------------- export
 
 export const resolvers = {
-  Query: {
-    anime: async (_: any, { id }: { id: number }) => {
-      const release = await db.query.anime.findFirst({
-        where: { id }
-      });
-
-      if (release) {
-        return release;
-      }
-
-      return null;
-    },
-
-    animes: async (_: any, args: AnimeArgs) => {
-      return getAnimePage(args);
-    },
-
-    genres: async () => {
-      return await db.select().from(animeGenre).orderBy(asc(animeGenre.name));
-    },
-
-    tags: async (_: any, args: { search?: string; category?: string; is_adult?: boolean }) => {
-      const conditions: SQL[] = [];
-
-      if (args.search) {
-        conditions.push(
-          or(
-            sql`lower(${animeTag.name}) like ${`%${args.search.toLowerCase()}%`}`,
-            sql`lower(${animeTag.description}) like ${`%${args.search.toLowerCase()}%`}`
-          )!
-        );
-      }
-      if (args.category) conditions.push(eq(animeTag.category, args.category));
-      if (args.is_adult !== undefined) conditions.push(eq(animeTag.is_adult, args.is_adult));
-
-      return await db
-        .select()
-        .from(animeTag)
-        .where(conditions.length ? and(...conditions) : undefined)
-        .orderBy(asc(animeTag.name));
-    },
-
-    studios: async (_: any, args: { search?: string }) => {
-      const where = args.search
-        ? sql`lower(${animeStudio.name}) like ${`%${args.search.toLowerCase()}%`}`
-        : undefined;
-
-      return await db.select().from(animeStudio).where(where).orderBy(asc(animeStudio.name)).limit(50);
-    }
-  },
-
-  Anime: {
-    poster: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.poster.load(parent.id);
-    },
-
-    title: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.title.load(parent.id);
-    },
-
-    start_date: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.startDate.load(parent.id);
-    },
-
-    end_date: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.endDate.load(parent.id);
-    },
-
-    broadcast: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.broadcast.load(parent.id);
-    },
-
-    age_rating: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.ageRating.load(parent.id);
-    },
-
-    genres: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.genres.load(parent.id);
-    },
-
-    airing_schedule: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.airingSchedule.load(parent.id);
-    },
-
-    latest_airing_episode: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.latestAiringEpisode.load(parent.id);
-    },
-
-    next_airing_episode: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.nextAiringEpisode.load(parent.id);
-    },
-
-    last_airing_episode: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.lastAiringEpisode.load(parent.id);
-    },
-
-    characters: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.characterConnections.load(parent.id);
-    },
-
-    studios: async (parent: any, args: { only_main?: boolean }, { loaders }: { loaders: Loaders }) => {
-      return loaders.studioConnections
-        .load(parent.id)
-        .then((sl) => sl.filter((s) => !args.only_main || s.is_main));
-    },
-
-    tags: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.tagConnections.load(parent.id);
-    },
-
-    score_distribution: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.scoreDistribution.load(parent.id);
-    },
-
-    status_distribution: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.statusDistribution.load(parent.id);
-    },
-
-    links: async (parent: any, args: LinkArgs, { loaders }: { loaders: Loaders }) => {
-      const ll = await loaders.links.load(parent.id);
-
-      return ll.filter(
-        (l) =>
-          (!args.type || l.type === args.type) &&
-          (!args.label || l.label?.toLowerCase().includes(args.label!.toLowerCase()))
-      );
-    },
-
-    other_titles: async (parent: any, args: OtherTitleArgs, { loaders }: { loaders: Loaders }) => {
-      const tl = await loaders.otherTitles.load(parent.id);
-
-      return tl.filter(
-        (t) => (!args.source || t.source === args.source) && (!args.language || t.language == args.language)
-      );
-    },
-
-    other_descriptions: async (parent: any, args: OtherDescriptionArgs, { loaders }: { loaders: Loaders }) => {
-      const dl = await loaders.otherDescriptions.load(parent.id);
-
-      return dl.filter(
-        (d) => (!args.source || d.source === args.source) && (!args.language || d.language == args.language)
-      );
-    },
-
-    images: async (parent: any, args: ImageArgs, { loaders }: { loaders: Loaders }) => {
-      const il = await loaders.images.load(parent.id);
-
-      return il
-        .filter((i) => (!args.source || i.source === args.source) && (!args.type || i.type === args.type))
-        .sort((a, b) => a.created_at! - b.created_at!)
-        .filter((i, index, self) => index === self.findIndex((t) => t.source === i.source && t.type === i.type));
-    },
-
-    videos: async (parent: any, args: VideoArgs, { loaders }: { loaders: Loaders }) => {
-      const vl = await loaders.videos.load(parent.id);
-
-      return vl.filter((v) => (!args.source || v.source === args.source) && (!args.type || v.type === args.type));
-    },
-
-    screenshots: async (parent: any, args: ScreenshotArgs, { loaders }: { loaders: Loaders }) => {
-      const sl = await loaders.screenshots.load(parent.id);
-
-      return sl.filter(
-        (s) =>
-          (!args.source || s.source === args.source) &&
-          (args.order_greater === undefined || s.order >= args.order_greater!) &&
-          (args.order_lesser === undefined || s.order <= args.order_lesser!)
-      );
-    },
-
-    artworks: async (parent: any, args: ArtworksArgs, { loaders }: { loaders: Loaders }) => {
-      const al = await loaders.artworks.load(parent.id);
-
-      return al.filter(
-        (a) =>
-          (!args.iso_639_1 || a.iso_639_1 === args.iso_639_1) &&
-          (!args.source || a.source === args.source) &&
-          (!args.type || a.type === args.type) &&
-          (!args.include_adult || a.is_adult === false)
-      );
-    },
-
-    translations: async (parent: any, args: TranslationsArgs, { loaders }: { loaders: Loaders }) => {
-      const tl = await loaders.translations.load(parent.id);
-
-      return tl.filter(
-        (t) => (!args.iso_639_1 || t.iso_639_1 === args.iso_639_1) && (!args.source || t.source === args.source)
-      );
-    },
-
-    chronology: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.chronology.load(parent.id);
-    },
-
-    recommendations: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.recommendations.load(parent.id);
-    },
-
-    connected: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      if (!parent.franchise) {
-        return [];
-      }
-
-      return loaders.connected.load(parent.franchise);
-    },
-
-    episodes: async (parent: any, args: EpisodeArgs, { loaders }: { loaders: Loaders }) => {
-      const el = await loaders.episodes.load(parent.id);
-
-      return el.filter(
-        (e) =>
-          (args.number_greater === undefined || e.number >= args.number_greater!) &&
-          (args.number_lesser === undefined || e.number <= args.number_lesser!) &&
-          (!args.air_date_greater ||
-            (e.air_date && new Date(e.air_date).getTime() >= new Date(args.air_date_greater).getTime())) &&
-          (!args.air_date_lesser ||
-            (e.air_date && new Date(e.air_date).getTime() <= new Date(args.air_date_lesser).getTime()))
-      );
-    }
-  },
-
-  CharacterConnection: {
-    character: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.character.load(parent.character_id);
-    },
-    voice_actors: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.voiceActors.load(parent.id);
-    }
-  },
-
-  StudioConnection: {
-    studio: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.studio.load(parent.studio_id);
-    }
-  },
-
-  TagConnection: {
-    tag: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.tag.load(parent.tag_id);
-    }
-  },
-
-  AnimeCharacter: {
-    date_of_birth: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.characterBirthDate.load(parent.id);
-    },
-    name: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.characterName.load(parent.id);
-    },
-    image: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.characterImage.load(parent.id);
-    }
-  },
-
-  VoiceActor: {
-    date_of_birth: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.voiceBirthDate.load(parent.id);
-    },
-    date_of_death: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.voiceDeathDate.load(parent.id);
-    },
-    name: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.voiceName.load(parent.id);
-    },
-    image: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.voiceImage.load(parent.id);
-    }
-  },
-
-  Episode: {
-    image: async (parent: any, _: any, { loaders }: { loaders: Loaders }) => {
-      return loaders.episodeImage.load(parent.id);
-    }
-  }
+  Query,
+  Page,
+  Media,
+  Character,
+  Studio,
+  AiringSchedule,
 };

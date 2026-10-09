@@ -251,6 +251,32 @@ Kuroji API wouldn't be possible without the amazing data provided by these platf
 
 ---
 
+## GraphQL: AniList API parity (`feat/anilist-graphql-parity`)
+
+The `/graphql` endpoint serves a schema identical to AniList's **public read surface**
+(`Page`, `Media`, `MediaTrend`, `AiringSchedule`, `Character`, `Staff`, `Studio`,
+`GenreCollection`, `MediaTagCollection`, `Review`, `SiteStatistics`,
+`ExternalLinkSourceCollection`, `Markdown`), so any AniList client query works unchanged
+against kuroji. The SDL in `src/core/graphql/schema.graphql` is pruned verbatim from
+AniList's live introspection schema.
+
+**Excluded (require an AniList account — cannot be mirrored):** `MediaList`,
+`MediaListCollection`, `User`, `Viewer`, `Notification`, `Activity`, `ActivityReply`,
+`Following`, `Follower`, `Thread`, `ThreadComment`, `Recommendation`, `Like`,
+`AniChartUser`, and all mutations.
+
+**Fields with no kuroji data** return `null` (never throw): `Media.trailer`,
+`Media.bannerImage`, `Media.chapters`, `Media.volumes`, `Media.relations`,
+`Media.staff`, `Media.trends`, `Media.streamingEpisodes`, `Media.rankings`,
+`Media.reviews`, `Media.nextAiringEpisode`, `MediaTrend` query, `Staff` query,
+`Review` query, user-specific fields (`Media.userId`, `Character.userId`, …).
+`Media.synonyms` returns `[]`, `Markdown.html` returns the input text unchanged,
+and `SiteStatistics` connections are empty (no trend history stored).
+
+**Breaking change vs the old custom schema:** the old `Query.anime(id:)`,
+`Query.animes(...)`, `Query.genres`, `Query.tags` fields and the `Anime`/`AnimePage`
+types no longer exist. The REST API is untouched.
+
 ## Contributing
 
 Fork it, branch it, commit it, push it, PR it.
