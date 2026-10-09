@@ -49,6 +49,11 @@ class ConfigModule {
   readonly anime_index_concurrency =
     Math.max(1, parseNumber(process.env.ANIME_INDEX_CONCURRENCY) ?? 3);
 
+  // Auto-start the indexer on boot (e.g. after a crash + systemd restart).
+  // Safe: the indexer resumes from indexer_state.last_page and skips anime
+  // already in the DB. Set to false if you want manual control only.
+  readonly indexer_autostart = parseBoolean(process.env.INDEXER_AUTOSTART) ?? true;
+
   // API Base URLs
   readonly anilist = process.env.ANILIST ?? 'https://graphql.anilist.co';
   readonly myanimelist = process.env.MYANIMELIST ?? 'https://myanimelist.net';

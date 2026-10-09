@@ -3,8 +3,7 @@ import './helpers/self.poll';
 
 import { createErrorResponse, createSuccessResponse } from './helpers/response';
 import { HttpError } from './helpers/errors';
-import { Config } from './config/config';
-import rateLimit from './helpers/plugins/rate.limit';
+import { Config } from './config/config';import rateLimit from './helpers/plugins/rate.limit';
 import protectRoute from './helpers/plugins/protect.route';
 import { adminRoute, animeIndexerRoute, animeRoute, animeUpdateRoute, apiRoute, mappingsRoute, yoga } from './core';
 import logger from './helpers/logger';
@@ -14,6 +13,29 @@ import swagger from '@elysiajs/swagger';
 import { db } from './db';
 import { sql } from 'drizzle-orm';
 import staticPlugin from '@elysiajs/static';
+import { AnimeIndexer } from './core/anime/helpers/anime.indexer';
+
+/**
+ * Process-level safety net.
+ *
+ * The postgres driver can surface errors OUTSIDE any promise chain — e.g.
+ * when Neon's pooler kills a socket mid-write, the driver's socket 'close'
+ * handler throws synchronously through node:events. No try/catch in the
+ * indexer (or anywhere in request handling) can intercept that; without
+ * these handlers one such error takes down the whole API *and* leaves the
+ * indexer dead until someone manually restarts it.
+ *
+ * We log loudly and keep running instead. The indexer itself is idempotent
+ * (resumes from indexer_state, skips existing anime) and its per-item work
+ * is retried (see withDbRetry), so surviving is the correct call here.
+ */
+process.on('unhandledRejection', (reason) => {
+  logger.error('[process] Unhandled promise rejection — process survived:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  logger.error('[process] Uncaught exception — process survived:', err);
+});
 
 const app = new Elysia()
   .use(
@@ -250,3 +272,16 @@ app.get(
 app.listen({ port: Config.port });
 
 logger.log(`Server listening on port ${Config.port}, at ${Config.public_url}`);
+
+// Auto-resume the indexer on boot (e.g. after a crash + systemd restart).
+// Safe: the indexer resumes from indexer_state.last_page and skips anime
+// already in the DB, and start() respects the indexer lock so it can never
+// double-start (e.g. if it was already triggered via the API).
+if (Config.indexer_autostart) {
+  logger.log('Indexer autostart enabled, resuming...');
+  AnimeIndexer.start({})
+    .then((msg) => logger.log(`Indexer autostart: ${msg}`))
+    .catch((err) => logger.error('Indexer autostart failed:', err));
+} else {
+  logger.log('Indexer autostart disabled (INDEXER_AUTOSTART=false)');
+}

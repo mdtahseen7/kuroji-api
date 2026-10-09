@@ -7,6 +7,7 @@ import { AnilistFetch, AnilistMedia, AnilistUtils, Shikimori } from '../provider
 import { Anime } from '../anime';
 import { Module } from 'src/helpers/module';
 import { forEachConcurrent } from 'src/helpers/concurrency';
+import { withDbRetry } from 'src/helpers/db.retry';
 import { anime, db, indexerState } from 'src/db';
 import { sql } from 'drizzle-orm';
 
@@ -146,15 +147,31 @@ class AnimeIndexerModule extends Module {
 
     logger.log(`Indexing anime: ${media.id}...`);
 
-    if (await Anime.exists(media.id)) {
-      if (await Anime.shouldAutoUpdate(media.id)) {
-        await Anime.saveAndInit(AnilistUtils.anilistToAnimePayload(media));
-      } else {
-        logger.log(`Wont update anime: ${media.id}...`);
-      }
-    } else {
-      await Anime.saveAndInit(AnilistUtils.anilistToAnimePayload(media));
+    // Jitter: concurrent workers would otherwise hit the DB pooler with
+    // their heaviest bulk writes at the exact same moment (that's what got
+    // a connection killed by Neon). A small random offset desynchronizes them.
+    await sleep(Math.floor(Math.random() * 1500));
+
+    if (!lock.isLocked('indexer')) {
+      return;
     }
+
+    // The whole per-anime DB unit is retried on transient errors (dropped
+    // pooler connections, timeouts). It's idempotent — existence checks +
+    // upserts — so a retried unit can't duplicate data. A rejection here is
+    // caught by forEachConcurrent: logged and counted, never aborts the
+    // other workers or the page.
+    await withDbRetry(`index anime ${media.id}`, async () => {
+      if (await Anime.exists(media.id)) {
+        if (await Anime.shouldAutoUpdate(media.id)) {
+          await Anime.saveAndInit(AnilistUtils.anilistToAnimePayload(media));
+        } else {
+          logger.log(`Wont update anime: ${media.id}...`);
+        }
+      } else {
+        await Anime.saveAndInit(AnilistUtils.anilistToAnimePayload(media));
+      }
+    });
 
     await sleep(delay * 1000);
   }
@@ -240,7 +257,9 @@ class AnimeIndexerModule extends Module {
           }
 
           logger.log(`Backfilling Shikimori for anime: ${row.id}...`);
-          await Shikimori.getInfo(row.id, row.idMal ?? undefined);
+          await withDbRetry(`shikimori backfill ${row.id}`, () =>
+            Shikimori.getInfo(row.id, row.idMal ?? undefined)
+          );
           await sleep(delay * 1000);
         },
         'anime'
