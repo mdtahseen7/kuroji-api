@@ -75,6 +75,20 @@ const adminRoute = () => {
         },
         headers: t.Object({ 'x-api-key': t.String() })
       })
+
+      .post('/indexer/backfill-shikimori', async ({ request }) => {
+        requireAdmin(request);
+
+        return createSuccessResponse({
+          message: await AnimeIndexer.backfillShikimori()
+        });
+      }, {
+        detail: {
+          summary: 'Backfill Shikimori data',
+          description: 'Phase 2 of the two-phase index: fills Shikimori videos/screenshots/posters/franchise for every anime already in the DB. Requires USE_SHIKIMORI=true and admin key in x-api-key header. Runs in the background under the indexer lock.'
+        },
+        headers: t.Object({ 'x-api-key': t.String() })
+      })
     );
 };
 

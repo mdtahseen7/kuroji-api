@@ -43,6 +43,12 @@ class ConfigModule {
   readonly anime_processing_delay =
     parseNumber(process.env.ANIME_INDEXER_DEFAULT_DELAY) ?? parseNumber(process.env.ANIME_PROCESSING_DELAY) ?? 5;
 
+  // How many anime to process concurrently within one index page.
+  // Each worker still waits anime_processing_delay between anime, so a single
+  // provider sees at most ~concurrency requests per delay window.
+  readonly anime_index_concurrency =
+    Math.max(1, parseNumber(process.env.ANIME_INDEX_CONCURRENCY) ?? 3);
+
   // API Base URLs
   readonly anilist = process.env.ANILIST ?? 'https://graphql.anilist.co';
   readonly myanimelist = process.env.MYANIMELIST ?? 'https://myanimelist.net';

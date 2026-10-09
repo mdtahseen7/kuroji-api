@@ -3,10 +3,11 @@ import { sleep } from 'bun';
 import logger from 'src/helpers/logger';
 import { EnableSchedule, Scheduled, Schedule } from 'src/helpers/schedule';
 import { Config } from 'src/config';
-import { AnilistFetch, AnilistUtils } from '../providers';
+import { AnilistFetch, AnilistMedia, AnilistUtils, Shikimori } from '../providers';
 import { Anime } from '../anime';
 import { Module } from 'src/helpers/module';
-import { db, indexerState } from 'src/db';
+import { forEachConcurrent } from 'src/helpers/concurrency';
+import { anime, db, indexerState } from 'src/db';
 import { sql } from 'drizzle-orm';
 
 @EnableSchedule
@@ -78,25 +79,26 @@ class AnimeIndexerModule extends Module {
 
         hasNextPage = response.pageInfo.hasNextPage;
 
-        for (const anime of response.media) {
-          if (!lock.isLocked('indexer')) {
-            logger.log('Indexing stopped.');
-            return;
-          }
+        const concurrency = Config.anime_index_concurrency;
 
-          logger.log(`Indexing anime: ${anime.id}...`);
+        logger.log(
+          `Indexing ${response.media.length} anime from page ${page} with concurrency ${concurrency}...`
+        );
 
-          if (await Anime.exists(anime.id)) {
-            if (await Anime.shouldAutoUpdate(anime.id)) {
-              await Anime.saveAndInit(AnilistUtils.anilistToAnimePayload(anime));
-            } else {
-              logger.log(`Wont update anime: ${anime.id}...`);
-            }
-          } else {
-            await Anime.saveAndInit(AnilistUtils.anilistToAnimePayload(anime));
-          }
+        const { failed } = await forEachConcurrent(
+          response.media,
+          concurrency,
+          (media) => this.processAnime(media, delay),
+          'anime'
+        );
 
-          await sleep(delay * 1000);
+        if (!lock.isLocked('indexer')) {
+          logger.log('Indexing stopped.');
+          return;
+        }
+
+        if (failed > 0) {
+          logger.log(`${failed} anime failed on page ${page}, continuing to next page...`);
         }
 
         page++;
@@ -123,6 +125,38 @@ class AnimeIndexerModule extends Module {
     } finally {
       lock.release('indexer');
     }
+  }
+
+  /**
+   * Index a single anime. Runs inside the page worker pool.
+   *
+   * Existing-anime semantics (auto_update flag, defaults to true):
+   * - not in DB -> full saveAndInit through all enabled providers
+   * - in DB + auto_update=true -> re-saved (refresh), providers served from
+   *   Redis cache when warm
+   * - in DB + auto_update=false -> skipped entirely ("Wont update")
+   *
+   * A rejection here is caught by forEachConcurrent: it is logged and counted
+   * but never aborts the other workers or the page.
+   */
+  private async processAnime(media: AnilistMedia, delay: number): Promise<void> {
+    if (!lock.isLocked('indexer')) {
+      return;
+    }
+
+    logger.log(`Indexing anime: ${media.id}...`);
+
+    if (await Anime.exists(media.id)) {
+      if (await Anime.shouldAutoUpdate(media.id)) {
+        await Anime.saveAndInit(AnilistUtils.anilistToAnimePayload(media));
+      } else {
+        logger.log(`Wont update anime: ${media.id}...`);
+      }
+    } else {
+      await Anime.saveAndInit(AnilistUtils.anilistToAnimePayload(media));
+    }
+
+    await sleep(delay * 1000);
   }
 
   public async start(options: { delay?: number; status?: string; threshold?: number }): Promise<string> {
@@ -154,6 +188,75 @@ class AnimeIndexerModule extends Module {
     lock.release('indexer');
     this.setState(1, undefined, status);
     return 'Reseted indexer';
+  }
+
+  /**
+   * Phase 2 of the two-phase index strategy: fill Shikimori-only data
+   * (videos/trailers, screenshots, posters, franchise chronology) for every
+   * anime already in the DB.
+   *
+   * Intended flow: run a full index pass with USE_SHIKIMORI=false (fast),
+   * then set USE_SHIKIMORI=true, restart, and hit this. Shikimori.getInfo()
+   * saves everything straight to the DB itself, so this touches Shikimori
+   * only — no other provider is re-fetched.
+   *
+   * Runs in the background under the shared 'indexer' lock, so it is mutually
+   * exclusive with a normal index run and stoppable via the regular stop
+   * endpoint.
+   */
+  public async backfillShikimori(): Promise<string> {
+    if (!Config.use_shikimori) {
+      return 'USE_SHIKIMORI is disabled — enable it and restart before running the backfill';
+    }
+
+    if (!lock.acquire('indexer')) {
+      logger.log('Indexer already running, skipping Shikimori backfill.');
+      return 'Indexer already running';
+    }
+
+    logger.log('Starting Shikimori backfill...');
+    this.runBackfillShikimori().catch((err) => {
+      logger.error('Error during Shikimori backfill:', err);
+    });
+
+    return 'Shikimori backfill started';
+  }
+
+  private async runBackfillShikimori(): Promise<void> {
+    try {
+      const rows = await db.select({ id: anime.id, idMal: anime.id_mal }).from(anime);
+
+      logger.log(`Backfilling Shikimori data for ${rows.length} anime...`);
+
+      const concurrency = Config.anime_index_concurrency;
+      const delay = Config.anime_processing_delay;
+
+      const { failed } = await forEachConcurrent(
+        rows,
+        concurrency,
+        async (row) => {
+          if (!lock.isLocked('indexer')) {
+            return;
+          }
+
+          logger.log(`Backfilling Shikimori for anime: ${row.id}...`);
+          await Shikimori.getInfo(row.id, row.idMal ?? undefined);
+          await sleep(delay * 1000);
+        },
+        'anime'
+      );
+
+      if (!lock.isLocked('indexer')) {
+        logger.log('Shikimori backfill stopped.');
+        return;
+      }
+
+      logger.log(`Shikimori backfill complete. ${rows.length - failed}/${rows.length} succeeded.`);
+    } catch (err) {
+      logger.error('Unexpected error during Shikimori backfill:', err);
+    } finally {
+      lock.release('indexer');
+    }
   }
 
   @Scheduled(Schedule.everyOtherMonth(), Config.anime_reindexing_enabled)
@@ -188,7 +291,7 @@ class AnimeIndexerModule extends Module {
 
     const remaining = Math.max(total - fetched, 0);
 
-    const timeS = remaining * (delay + 10);
+    const timeS = (remaining * (delay + 10)) / Math.max(1, Config.anime_index_concurrency);
     const timeM = Math.floor(timeS / 60);
     const timeH = Math.floor(timeM / 60);
     const timeD = Math.floor(timeH / 24);
